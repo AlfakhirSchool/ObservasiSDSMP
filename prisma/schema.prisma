@@ -1,0 +1,140 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  engineType      = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(INTERVIEWER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Candidate {
+  id                  String            @id @default(cuid())
+  name                String
+  level               Level
+  status              Status            @default(PENDING)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  selectedInterviewer String?
+  room                String?
+  parentEmail         String?
+  studentEmail        String?
+  parentPhone         String?
+  correctedName       String?
+  academicYear        String?
+  aiSummary           AiSummary?
+  academicTestResult  AcademicTestResult?
+  academicResponses   AcademicResponse[]
+  formAnswers         FormAnswer[]
+  notes               InterviewerNote[]
+}
+
+model AcademicQuestion {
+  id            String             @id @default(cuid())
+  text          String
+  subject       String
+  imageUrl      String?
+  options       String             // JSON array
+  correctAnswer String
+  order         Int                @default(0)
+  responses     AcademicResponse[]
+}
+
+model AcademicResponse {
+  id          String           @id @default(cuid())
+  candidateId String
+  questionId  String
+  answer      String
+  isCorrect   Boolean
+  candidate   Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  question    AcademicQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, questionId])
+}
+
+model AcademicTestResult {
+  id            String    @id @default(cuid())
+  candidateId   String    @unique
+  totalScore    Float
+  subjectScores String    // JSON string breakdown
+  createdAt     DateTime  @default(now())
+  candidate     Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+model FormQuestion {
+  id        String       @id @default(cuid())
+  text      String
+  type      String
+  category  String
+  level     Level?
+  order     Int          @default(0)
+  options   String?
+  isSystem  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  answers   FormAnswer[]
+}
+
+model FormAnswer {
+  id          String       @id @default(cuid())
+  candidateId String
+  questionId  String
+  value       String
+  createdAt   DateTime     @default(now())
+  candidate   Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  question    FormQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, questionId])
+}
+
+model InterviewerNote {
+  id                 String    @id @default(cuid())
+  candidateId        String
+  interviewerEmail   String
+  interviewerName    String
+  observation        String
+  academicAssessment String
+  familySupport      String
+  characterNotes     String
+  recommendation     String
+  isLocked           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  otherNotes         String?
+  candidate          Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+model AiSummary {
+  id          String    @id @default(cuid())
+  candidateId String    @unique
+  summary     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  ADMIN
+  INTERVIEWER
+}
+
+enum Level {
+  SD
+  SMP
+}
+
+enum Status {
+  PENDING
+  RESPONSE_RECEIVED
+  REVIEWED
+  COMPLETED
+}

@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* NProgress Styles */
+#nprogress {
+  pointer-events: none;
+}
+#nprogress .bar {
+  background: var(--color-primary);
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+}
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow: 0 0 10px var(--color-primary), 0 0 5px var(--color-primary);
+  opacity: 1.0;
+  transform: rotate(3deg) translate(0px, -4px);
+}
+
+:root {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  
+  --sidebar-width: 220px;
+  --header-height: 60px;
+  
+  /* Colors from Logos */
+  --color-smp: #0D5C63;
+  --color-smp-light: #E0F2F1;
+  --color-sd: #E67E22;
+  --color-sd-light: #FFF3E0;
+  --color-gold: #F1C40F;
+  
+  /* Main UI Colors */
+  --bg-page: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #0F172A;
+  
+  --color-primary: var(--color-smp);
+  --color-primary-dark: #0A454A;
+  --color-primary-light: var(--color-smp-light);
+  
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.status-dot {
+  animation: pulse 2s infinite;
+}
+
+/* Custom scrollbar for sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1E3A5F;
+  border-radius: 2px;
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background-color: #F8FAFC !important;
+}
+
+/* Premium Transitions */
+:where(a, button, input, select, textarea, .card, [role="button"]) {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+.smooth-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Focus states */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #10B981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+/* Theme Utilities */
+.bg-sd {
+  background-color: var(--color-sd) !important;
+}
+.bg-smp {
+  background-color: var(--color-smp) !important;
+}
+.text-sd {
+  color: var(--color-sd) !important;
+}
+.text-smp {
+  color: var(--color-smp) !important;
+}
+.border-sd {
+  border-color: var(--color-sd) !important;
+}
+.border-smp {
+  border-color: var(--color-smp) !important;
+}
