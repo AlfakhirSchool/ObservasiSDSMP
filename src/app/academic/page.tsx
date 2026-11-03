@@ -20,14 +20,12 @@ export default async function AcademicPortalPage() {
 
   const activeYear = latestSMP?.academicYear || "2027/2028"
 
-  // Hanya ambil calon siswa SMP dari tahun ajaran terbaru (observasi baru)
+  // Hanya ambil calon siswa SMP dari tahun ajaran terbaru yang belum selesai ujian (aktif)
   const candidates = await (prisma as any).candidate.findMany({
     where: {
       level: "SMP",
-      academicYear: activeYear
-    },
-    include: {
-      academicTestResult: true
+      academicYear: activeYear,
+      academicTestResult: null
     },
     orderBy: {
       name: "asc"

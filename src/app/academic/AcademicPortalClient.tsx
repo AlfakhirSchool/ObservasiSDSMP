@@ -14,10 +14,7 @@ export default function AcademicPortalClient({
   const [searchTerm, setSearchTerm] = useState("")
 
   const filteredCandidates = candidates
-    .filter((c: any) => !c.academicTestResult)
     .filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
-
-  const finishedCandidates = candidates.filter((c: any) => c.academicTestResult)
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 pb-20">
@@ -108,20 +105,6 @@ export default function AcademicPortalClient({
               ))
             )}
           </div>
-
-          {/* Finished Section */}
-          {!searchTerm && finishedCandidates.length > 0 && (
-            <div className="pt-6 border-t border-slate-100">
-               <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-4 text-center">Siswa yang Sudah Selesai</p>
-               <div className="flex flex-wrap justify-center gap-2">
-                  {finishedCandidates.map((c: any) => (
-                    <div key={c.id} className="px-4 py-1.5 bg-slate-50 rounded-full border border-slate-100 text-[11px] font-bold text-slate-400 line-through opacity-60">
-                      {c.name}
-                    </div>
-                  ))}
-               </div>
-            </div>
-          )}
         </div>
 
         {/* Footer info */}

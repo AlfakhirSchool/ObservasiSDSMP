@@ -4,10 +4,18 @@ import FormPortalClient from "./form-portal-client"
 export const dynamic = "force-dynamic"
 
 export default async function FormPortalPage() {
+  // Ambil tahun ajaran terbaru (hanya observasi baru aktif)
+  const latestCandidate = await prisma.candidate.findFirst({
+    where: { academicYear: { not: null } },
+    orderBy: { academicYear: "desc" },
+    select: { academicYear: true }
+  })
+  const activeYear = latestCandidate?.academicYear || "2027/2028"
 
   const candidates = await prisma.candidate.findMany({
     where: {
-      status: { in: ["PENDING", "RESPONSE_RECEIVED"] }
+      status: { in: ["PENDING", "RESPONSE_RECEIVED"] },
+      academicYear: activeYear
     },
     select: {
       id: true,
