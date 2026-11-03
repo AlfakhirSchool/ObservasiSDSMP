@@ -4,7 +4,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { GraduationCap, Search, User, ChevronRight } from "lucide-react"
 
-export default function AcademicPortalClient({ candidates }: { candidates: any[] }) {
+export default function AcademicPortalClient({ 
+  candidates, 
+  academicYear 
+}: { 
+  candidates: any[]
+  academicYear?: string 
+}) {
   const [searchTerm, setSearchTerm] = useState("")
 
   const filteredCandidates = candidates
@@ -28,9 +34,17 @@ export default function AcademicPortalClient({ candidates }: { candidates: any[]
               />
             </div>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-2">
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Akademik</h1>
             <p className="text-slate-400 font-bold text-sm uppercase tracking-widest leading-none">Al Fakhir Middle School</p>
+            {academicYear && (
+              <div className="pt-2">
+                <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black tracking-wide uppercase shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Observasi Baru &bull; TA {academicYear}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
