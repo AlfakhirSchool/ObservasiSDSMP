@@ -72,6 +72,8 @@ interface Stats {
 interface Props {
   stats: Stats
   role?: string
+  availableYears?: { year: string; count: number }[]
+  initialYear?: string
 }
 
 const STATUS_ICONS: { icon: LucideIcon; tone: string }[] = [
@@ -96,16 +98,47 @@ function toLocalDateString(value: string | Date): string {
   return `${d.getFullYear()}-${month}-${day}`
 }
 
-export default function AdminOverviewClient({ stats: initialStats, role = "admin" }: Props) {
+export default function AdminOverviewClient({ 
+  stats: initialStats, 
+  role = "admin",
+  availableYears = [],
+  initialYear = "2027/2028"
+}: Props) {
   const [stats, setStats] = useState<Stats>(initialStats)
+  const [selectedYear, setSelectedYear] = useState<string>(initialYear)
+  const [isChangingYear, setIsChangingYear] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [dateQuery, setDateQuery] = useState("")
+
+  const handleYearChange = async (year: string) => {
+    setSelectedYear(year)
+    setIsChangingYear(true)
+    try {
+      const level = role === "admin_sd" ? "SD" : role === "admin_smp" ? "SMP" : ""
+      const params = new URLSearchParams()
+      if (level) params.set("level", level)
+      if (year && year !== "all") params.set("academicYear", year)
+      
+      const res = await fetch(`/api/admin/stats?${params.toString()}`)
+      if (res.ok) {
+        setStats((await res.json()) as Stats)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsChangingYear(false)
+    }
+  }
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const level = role === "admin_sd" ? "SD" : role === "admin_smp" ? "SMP" : ""
-        const res = await fetch(`/api/admin/stats${level ? `?level=${level}` : ""}`)
+        const params = new URLSearchParams()
+        if (level) params.set("level", level)
+        if (selectedYear && selectedYear !== "all") params.set("academicYear", selectedYear)
+
+        const res = await fetch(`/api/admin/stats?${params.toString()}`)
         if (res.ok) {
           setStats((await res.json()) as Stats)
         }
@@ -115,7 +148,7 @@ export default function AdminOverviewClient({ stats: initialStats, role = "admin
     }
 
     return startPolling(fetchStats, 30000) // 30s dan berhenti saat tab tersembunyi
-  }, [role])
+  }, [role, selectedYear])
 
   const title =
     role === "admin_sd" ? "Dashboard Unit SD" : role === "admin_smp" ? "Dashboard Unit SMP" : "Ringkasan"
@@ -139,10 +172,35 @@ export default function AdminOverviewClient({ stats: initialStats, role = "admin
         title={title}
         description="Pemantauan progres observasi penerimaan siswa"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
-              TA {getAcademicYear()}
-            </span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Year Selector */}
+            <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-slate-200 shadow-sm">
+              <span className="text-xs font-semibold text-slate-500 pl-1">Tahun Ajaran:</span>
+              <select
+                aria-label="Pilih Tahun Ajaran"
+                value={selectedYear}
+                onChange={(e) => handleYearChange(e.target.value)}
+                className="h-8 rounded-lg border-0 bg-transparent px-2 text-xs font-bold text-slate-800 outline-none cursor-pointer hover:text-emerald-700 focus:ring-0"
+              >
+                {availableYears.length > 0 ? (
+                  <>
+                    {availableYears.map((ay, idx) => (
+                      <option key={ay.year} value={ay.year}>
+                        {idx === 0 ? `TA ${ay.year} (Observasi Baru)` : `TA ${ay.year}`} ({ay.count})
+                      </option>
+                    ))}
+                    <option value="all">Semua Tahun</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="2027/2028">TA 2027/2028 (Observasi Baru)</option>
+                    <option value="2026/2027">TA 2026/2027</option>
+                    <option value="all">Semua Tahun</option>
+                  </>
+                )}
+              </select>
+            </div>
+
             <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
               <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
               Sistem aktif
@@ -150,6 +208,25 @@ export default function AdminOverviewClient({ stats: initialStats, role = "admin
           </div>
         }
       />
+
+      {/* Info Banner when filtered by active year */}
+      {selectedYear !== "all" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5 text-xs text-emerald-900">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              Menampilkan data <strong>Tahun Ajaran {selectedYear}</strong>. Data observasi tahun lalu disembunyikan.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleYearChange("all")}
+            className="font-bold text-emerald-700 underline underline-offset-2 hover:text-emerald-900 transition-colors"
+          >
+            Lihat semua tahun
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Siswa Baru" value={stats.total} icon={UserPlus} tone="blue" />

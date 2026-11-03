@@ -55,6 +55,13 @@ const REC_META: Record<Recommendation, { color: string; pill: string; text: stri
 const REC_ORDER: Recommendation[] = ["Terima", "Pertimbangkan", "Tolak"]
 
 export default function AdminNotesClient({ notes }: Props) {
+  const availableYears = useMemo(() => {
+    const years = [...new Set(notes.map((n) => n.academicYear).filter(Boolean))] as string[]
+    years.sort((a, b) => b.localeCompare(a))
+    return years
+  }, [notes])
+
+  const [yearFilter, setYearFilter] = useState(availableYears[0] || "")
   const [interviewerFilter, setInterviewerFilter] = useState("")
   const [recFilter, setRecFilter] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -70,11 +77,12 @@ export default function AdminNotesClient({ notes }: Props) {
 
   const filtered = useMemo(() => {
     return notes.filter((n) => {
+      const matchYear = !yearFilter || yearFilter === "all" || n.academicYear === yearFilter
       const matchInterviewer = !interviewerFilter || n.interviewerName === interviewerFilter
       const matchRec = !recFilter || n.recommendation === recFilter
-      return matchInterviewer && matchRec
+      return matchYear && matchInterviewer && matchRec
     })
-  }, [notes, interviewerFilter, recFilter])
+  }, [notes, yearFilter, interviewerFilter, recFilter])
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
@@ -98,6 +106,7 @@ export default function AdminNotesClient({ notes }: Props) {
   }
 
   const resetFilters = () => {
+    setYearFilter(availableYears[0] || "")
     setInterviewerFilter("")
     setRecFilter("")
     setPage(1)
@@ -182,6 +191,25 @@ export default function AdminNotesClient({ notes }: Props) {
           <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold text-slate-900">Daftar catatan</h2>
             <div className="flex flex-wrap gap-2">
+              {availableYears.length > 0 && (
+                <div className="min-w-44 flex-1 sm:flex-none">
+                  <Select
+                    aria-label="Filter tahun ajaran"
+                    options={[
+                      ...availableYears.map((y, idx) => ({ 
+                        value: y, 
+                        label: idx === 0 ? `TA ${y} (Baru)` : `TA ${y}` 
+                      })),
+                      { value: "all", label: "Semua Tahun" },
+                    ]}
+                    value={yearFilter}
+                    onChange={(e) => {
+                      setYearFilter(e.target.value)
+                      setPage(1)
+                    }}
+                  />
+                </div>
+              )}
               <div className="min-w-48 flex-1 sm:flex-none">
                 <Select
                   aria-label="Filter pewawancara"

@@ -25,6 +25,7 @@ export interface InterviewerNote {
   submittedAt: string
   isLocked: boolean
   aiSummary?: string | null
+  academicYear?: string | null
 }
 
 export interface InterviewerStats {

@@ -13,7 +13,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const level = searchParams.get("level") || undefined
-    const stats = await getDashboardStats(level)
+    const academicYear = searchParams.get("academicYear") || undefined
+    const stats = await getDashboardStats(level, academicYear)
     return NextResponse.json(stats)
   } catch (error) {
     console.error("[GET /api/admin/stats]", error)

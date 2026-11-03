@@ -16,7 +16,15 @@ export default async function AdminNotesPage() {
   if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
 
   const rows = await prisma.interviewerNote.findMany({
-    include: { candidate: { select: { name: true, aiSummary: { select: { summary: true } } } } },
+    include: { 
+      candidate: { 
+        select: { 
+          name: true, 
+          academicYear: true,
+          aiSummary: { select: { summary: true } } 
+        } 
+      } 
+    },
     orderBy: { createdAt: "desc" },
   })
 
@@ -24,6 +32,7 @@ export default async function AdminNotesPage() {
     noteId: n.id,
     candidateId: n.candidateId,
     candidateName: n.candidate.name,
+    academicYear: n.candidate.academicYear ?? null,
     interviewerEmail: n.interviewerEmail,
     interviewerName: n.interviewerName,
     observation: n.observation,

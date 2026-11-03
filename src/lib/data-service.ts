@@ -7,26 +7,38 @@ export async function getCurrentGelombang(academicYear: string) {
   return latest._max.gelombang ?? 1
 }
 
-export async function getDashboardStats(level?: string) {
-  const where = level ? { level: level as any } : {}
+export async function getDashboardStats(level?: string, academicYear?: string) {
+  const where: any = {}
+  if (level) where.level = level as any
+  if (academicYear && academicYear !== "all") where.academicYear = academicYear
   
   const total = await prisma.candidate.count({ where })
   const pending = await prisma.candidate.count({ where: { ...where, status: "PENDING" } })
   const received = await prisma.candidate.count({ where: { ...where, status: "RESPONSE_RECEIVED" } })
   const reviewed = await prisma.candidate.count({ where: { ...where, status: "REVIEWED" } })
+  
+  const notesWhere: any = {}
+  if (level) notesWhere.candidate = { level: level as any }
+  if (academicYear && academicYear !== "all") {
+    notesWhere.candidate = {
+      ...(notesWhere.candidate || {}),
+      academicYear: academicYear
+    }
+  }
+
   const completed = await prisma.interviewerNote.count({ 
     where: { 
-      ...(level ? { candidate: { level: level as any } } : {}), 
+      ...notesWhere,
       recommendation: "Terima" 
     } 
   })
   
   const notesTotal = await prisma.interviewerNote.count({
-    where: level ? { candidate: { level: level as any } } : {}
+    where: notesWhere
   })
 
   const recentObservations = await prisma.interviewerNote.findMany({
-    where: level ? { candidate: { level: level as any } } : {},
+    where: notesWhere,
     take: 100,
     orderBy: { createdAt: "desc" },
     include: {
@@ -39,6 +51,7 @@ export async function getDashboardStats(level?: string) {
           status: true,
           parentEmail: true,
           studentEmail: true,
+          academicYear: true,
         }
       }
     }
@@ -64,7 +77,7 @@ export async function getDashboardStats(level?: string) {
 
     const countDone = await prisma.interviewerNote.count({
       where: {
-        ...(level ? { candidate: { level: level as any } } : {}),
+        ...notesWhere,
         createdAt: { gte: d, lt: nextD }
       }
     })
