@@ -1,10 +1,11 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 type Unit = "sd" | "smp" | null
 
-export function BrandLogo({ role }: { role: string }) {
+export function BrandLogo({ role, textClassName }: { role: string; textClassName?: string }) {
   const pathname = usePathname()
 
   const segments = pathname.toLowerCase().split("/").filter(Boolean)
@@ -25,7 +26,7 @@ export function BrandLogo({ role }: { role: string }) {
             className="h-full w-full object-contain p-1"
           />
         </div>
-        <div className="flex flex-col leading-tight">
+        <div className={cn("flex flex-col leading-tight", textClassName)}>
           <span className="text-sm font-semibold text-white">Al Fakhir</span>
           <span className={isSD ? "text-xs font-medium text-orange-400" : "text-xs font-medium text-emerald-400"}>
             Unit {isSD ? "SD" : "SMP"}
@@ -45,7 +46,7 @@ export function BrandLogo({ role }: { role: string }) {
           <img src="/logo-smp.png" alt="Logo SMP" className="h-full w-full object-contain p-1" />
         </div>
       </div>
-      <div className="flex flex-col leading-tight">
+      <div className={cn("flex flex-col leading-tight", textClassName)}>
         <span className="text-sm font-semibold text-white">Al Fakhir</span>
         <span className="text-xs text-slate-400">Observation System</span>
       </div>

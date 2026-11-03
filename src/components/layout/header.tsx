@@ -92,7 +92,7 @@ export function Header({ name, role }: HeaderProps) {
   }, [showNotifications])
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
       {/* QR Portal Utama */}
       <button
         type="button"

@@ -25,36 +25,41 @@ export default async function DashboardLayout({
       {/* GLOBAL PORTAL TOP NAV */}
       <nav className="sticky top-0 z-50 h-16 border-b border-white/10 bg-[#0D1B2A] text-white">
         <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3 xl:gap-5">
+          <div className="flex min-w-0 flex-1 items-center gap-3 xl:gap-5">
             <MobileNav name={name} role={role} />
 
             <Link
               href="/admin/admin"
               className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
             >
-              <BrandLogo role={role} />
+              {/* Teks merek disembunyikan saat menu desktop tampil: enam item menu + logo tidak muat berdampingan. */}
+              <BrandLogo role={role} textClassName="xl:hidden" />
             </Link>
 
-            {/* Horizontal Menu */}
-            <div className="hidden items-center gap-1 xl:flex">
+            {/*
+              Menu desktop. Tidak boleh menimpa sisi kanan di lebar/zoom/font apa pun: wadah ini menyusut,
+              item yang tidak muat turun ke baris kedua yang sengaja terpotong (tinggi tetap + overflow-hidden).
+              Divider menyatu dengan grup SD/SMP supaya keduanya hilang bersama.
+            */}
+            <div className="hidden h-10 min-w-0 flex-wrap items-center gap-x-1 gap-y-6 overflow-hidden xl:flex">
               {MAIN_NAV_ITEMS.map(({ href, label }) => (
                 <NavLink key={href} href={href}>
                   {label}
                 </NavLink>
               ))}
 
-              <div className="mx-3 h-6 w-px bg-white/10" aria-hidden="true" />
-
-              <div
-                role="group"
-                aria-label="Pewawancara"
-                className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
-              >
-                {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
-                  <NavLink key={href} href={href} className="px-2.5 py-1 text-xs">
-                    <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
-                  </NavLink>
-                ))}
+              <div className="ml-2 flex items-center border-l border-white/10 pl-3">
+                <div
+                  role="group"
+                  aria-label="Pewawancara"
+                  className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
+                >
+                  {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
+                    <NavLink key={href} href={href} className="px-2.5 py-1 text-xs">
+                      <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
