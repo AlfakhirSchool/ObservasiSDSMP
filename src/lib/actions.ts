@@ -177,7 +177,15 @@ export async function deleteQuestion(id: string) {
   }
 }
 
-export async function updateCandidate(id: string, data: { name?: string; level?: Level; gelombang?: number; nim?: string | null }) {
+export async function updateCandidate(id: string, data: { 
+  name?: string
+  level?: Level
+  gelombang?: number
+  academicYear?: string | null
+  room?: string | null
+  selectedInterviewer?: string | null
+  nim?: string | null 
+}) {
   await assertAdmin()
   try {
     const updated = await prisma.candidate.update({ where: { id }, data, select: { name: true } })

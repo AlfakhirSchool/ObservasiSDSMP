@@ -588,19 +588,29 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                   <th className={cn(thCls, "w-44")}>Status</th>
                   <th className={cn(thCls, "w-32")}>Skor Akademik</th>
                   <th className={cn(thCls, "w-32")}>Tanggal</th>
-                  <th className={cn(thCls, "w-44 text-right")}>Aksi</th>
+                  <th className={cn(thCls, "sticky right-0 z-20 w-48 bg-slate-50 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]")}>Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginated.map((c, i) => {
                   const displayName = c.correctedName || c.name
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50">
+                    <tr key={c.id} className="group hover:bg-slate-50">
                       <td className="px-4 py-3 text-center text-sm tabular-nums text-slate-500">
                         {(page - 1) * ITEMS_PER_PAGE + i + 1}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-slate-900">{displayName}</div>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCandidate(c)}
+                          className="group/name block text-left"
+                          title="Klik untuk mengedit data siswa"
+                        >
+                          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 group-hover/name:text-emerald-700">
+                            <span>{displayName}</span>
+                            <Pencil size={13} className="text-slate-400 opacity-60 transition-opacity group-hover/name:opacity-100 group-hover/name:text-emerald-600" />
+                          </div>
+                        </button>
                         <div className="mt-0.5 text-sm text-slate-500">
                           {c.parentPhone ? c.parentPhone : "Belum ada no. HP"}
                         </div>
@@ -609,8 +619,32 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <div className="text-sm font-medium text-slate-900">Gelombang {c.gelombang}</div>
-                        <div className="mt-0.5 text-sm text-slate-500">TA {c.academicYear ?? "-"}</div>
+                        <div className="flex flex-col gap-1">
+                          <select
+                            aria-label={`Gelombang ${displayName}`}
+                            value={c.gelombang}
+                            onChange={async (e) => {
+                              const val = Number(e.target.value)
+                              if (!Number.isInteger(val) || val < 1) return
+                              setCandidates(prev => prev.map(item => item.id === c.id ? { ...item, gelombang: val } : item))
+                              const res = await updateCandidate(c.id, { gelombang: val })
+                              if (res.success) {
+                                toast.success(`Gelombang ${displayName} diubah ke Gelombang ${val}`)
+                              } else {
+                                toast.error("Gagal mengubah gelombang")
+                                router.refresh()
+                              }
+                            }}
+                            className={cn(cellSelectCls, "w-32 font-medium text-slate-900")}
+                          >
+                            <option value={1}>Gelombang 1</option>
+                            <option value={2}>Gelombang 2</option>
+                            <option value={3}>Gelombang 3</option>
+                            <option value={4}>Gelombang 4</option>
+                            <option value={5}>Gelombang 5</option>
+                          </select>
+                          <span className="pl-1 text-xs text-slate-500">TA {c.academicYear ?? "-"}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <select
@@ -618,7 +652,10 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                           defaultValue={c.level}
                           onChange={async (e) => {
                             const value = e.target.value
-                            if (isLevel(value)) await updateCandidate(c.id, { level: value })
+                            if (isLevel(value)) {
+                              setCandidates(prev => prev.map(item => item.id === c.id ? { ...item, level: value } : item))
+                              await updateCandidate(c.id, { level: value })
+                            }
                           }}
                           className={cn(
                             cellSelectCls,
@@ -674,14 +711,14 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                       <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-500">
                         {formatShortDate(c.createdAt)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="sticky right-0 z-10 bg-white px-4 py-3 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] transition-colors group-hover:bg-slate-50">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setEditingCandidate(c)}
-                            className={iconBtnCls}
+                            className={cn(iconBtnCls, "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800")}
                             aria-label={`Edit ${displayName}`}
-                            title="Edit"
+                            title="Edit Data Siswa"
                           >
                             <Pencil size={16} aria-hidden="true" />
                           </button>
@@ -787,11 +824,34 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               const formData = new FormData(e.currentTarget)
               const name = formData.get("name")
               const level = formData.get("level")
-
               const gelombang = Number(formData.get("gelombang"))
+              const academicYear = String(formData.get("academicYear") ?? "").trim() || undefined
+              const nim = String(formData.get("nim") ?? "").trim() || null
+
               if (typeof name !== "string" || typeof level !== "string" || !isLevel(level)) return
               if (!Number.isInteger(gelombang) || gelombang < 1) return
-              await updateCandidate(editingCandidate.id, { name, level, gelombang, nim: String(formData.get("nim") ?? "").trim() || null })
+
+              setCandidates(prev => prev.map(item => item.id === editingCandidate.id ? {
+                ...item,
+                name,
+                level,
+                gelombang,
+                nim,
+                academicYear: academicYear ?? item.academicYear
+              } : item))
+
+              const res = await updateCandidate(editingCandidate.id, {
+                name,
+                level,
+                gelombang,
+                nim,
+                academicYear,
+              })
+              if (res.success) {
+                toast.success("Data siswa berhasil diperbarui")
+              } else {
+                toast.error("Gagal menyimpan data siswa")
+              }
               setEditingCandidate(null)
               router.refresh()
             }}
@@ -823,14 +883,27 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
 
             <div className="space-y-1.5">
               <label htmlFor="edit-gelombang" className={labelCls}>Gelombang</label>
-              <input
+              <select
                 id="edit-gelombang"
                 name="gelombang"
-                type="number"
-                min={1}
-                max={9}
-                defaultValue={editingCandidate?.gelombang}
-                required
+                defaultValue={editingCandidate?.gelombang ?? 1}
+                className={cn(controlCls, "w-full cursor-pointer px-3")}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
+                  <option key={g} value={g}>
+                    Gelombang {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="edit-academicYear" className={labelCls}>Tahun Ajaran</label>
+              <input
+                id="edit-academicYear"
+                name="academicYear"
+                defaultValue={editingCandidate?.academicYear ?? "2027/2028"}
+                placeholder="Contoh: 2027/2028"
                 className={cn(controlCls, "w-full px-3")}
               />
             </div>
