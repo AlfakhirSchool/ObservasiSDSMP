@@ -18,6 +18,7 @@ import {
 import { PERIOD_ALL, PERIOD_LATEST, filterByPeriod, listPeriods, periodKey, type PeriodFilterValue } from "@/lib/period"
 import { buildSuratPdf, loadSuratAssets, suratFileName } from "@/lib/surat-pdf"
 import { updateCandidate } from "@/lib/actions"
+import { logRaportBulkDownload } from "@/lib/raport-actions"
 import { cn } from "@/lib/utils"
 
 export type SuratBulkCandidate = SuratCandidateInput & { id: string }
@@ -147,6 +148,9 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
+      const periodLabel =
+        period === PERIOD_ALL ? "Semua gelombang" : (periods.find((p) => p.key === (period === PERIOD_LATEST ? periods[0]?.key : period))?.label ?? "-")
+      void logRaportBulkDownload(selected.length, periodLabel).catch(() => {})
       toast.success(`${selected.length} raport diunduh`, { id: toastId })
       onOpenChange(false)
     } catch {

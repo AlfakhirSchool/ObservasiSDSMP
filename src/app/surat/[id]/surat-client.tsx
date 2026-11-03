@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useParams } from "next/navigation"
 import toast from "react-hot-toast"
 import {
   SURAT_STATUS_OPTIONS,
@@ -16,6 +17,7 @@ import {
   type SuratStatus,
 } from "@/lib/surat"
 import { buildSuratPdf, loadSuratAssets, suratFileName } from "@/lib/surat-pdf"
+import { logRaportDownload } from "@/lib/raport-actions"
 import "./surat.css"
 
 export type SuratDraft = Omit<SuratData, "status" | "penutup"> & { status: SuratStatus | "" }
@@ -29,6 +31,7 @@ export default function SuratClient({ initial }: SuratClientProps) {
   /** Teks penutup yang diubah manual; null = pakai teks bawaan sesuai keputusan. */
   const [penutupEdit, setPenutupEdit] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const { id } = useParams<{ id: string }>()
 
   const update = <K extends keyof SuratDraft>(key: K, value: SuratDraft[K]) => setDraft((d) => ({ ...d, [key]: value }))
 
@@ -60,6 +63,8 @@ export default function SuratClient({ initial }: SuratClientProps) {
     try {
       const doc = await buildSuratPdf({ ...draft, status: draft.status, penutup }, await loadSuratAssets(draft.unit))
       doc.save(suratFileName(draft.nama))
+      // Catat ke riwayat; kegagalan mencatat tidak boleh mengganggu unduhan.
+      void logRaportDownload(id).catch(() => {})
       toast.success("PDF berhasil diunduh")
     } catch {
       toast.error("Gagal membuat PDF")
