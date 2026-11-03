@@ -1,6 +1,12 @@
 import { prisma } from "./prisma"
 import { Level } from "@prisma/client"
 
+/** Gelombang aktif untuk tahun ajaran: nomor tertinggi yang sudah dipakai, atau 1 jika belum ada siswa. */
+export async function getCurrentGelombang(academicYear: string) {
+  const latest = await prisma.candidate.aggregate({ where: { academicYear }, _max: { gelombang: true } })
+  return latest._max.gelombang ?? 1
+}
+
 export async function getDashboardStats(level?: string) {
   const where = level ? { level: level as any } : {}
   
@@ -195,5 +201,60 @@ export async function getCandidates(interviewerEmail?: string, level?: string) {
     orderBy: {
       createdAt: "desc"
     }
+  })
+}
+
+export interface InterviewerMonitorRow {
+  username: string
+  name: string
+  assigned: number
+  withForm: number
+  notesDone: number
+  progress: number
+}
+
+export async function getInterviewerMonitor(): Promise<InterviewerMonitorRow[]> {
+  const users = await prisma.user.findMany({
+    where: { role: "INTERVIEWER", username: { not: null } },
+    select: { username: true, name: true },
+    orderBy: { name: "asc" },
+  })
+
+  const names = users.flatMap((u) => (u.name ? [u.name] : []))
+  const candidates = names.length
+    ? await prisma.candidate.findMany({
+        where: { selectedInterviewer: { in: names } },
+        select: {
+          selectedInterviewer: true,
+          status: true,
+          _count: { select: { notes: true } },
+        },
+      })
+    : []
+
+  const totals = new Map<string, { assigned: number; withForm: number; notesDone: number }>()
+  for (const c of candidates) {
+    if (!c.selectedInterviewer) continue
+    const entry = totals.get(c.selectedInterviewer) ?? { assigned: 0, withForm: 0, notesDone: 0 }
+    entry.assigned += 1
+    if (c.status !== "PENDING") entry.withForm += 1
+    if (c._count.notes > 0) entry.notesDone += 1
+    totals.set(c.selectedInterviewer, entry)
+  }
+
+  return users.flatMap((u) => {
+    if (!u.username) return []
+    const name = u.name ?? u.username
+    const t = (u.name ? totals.get(u.name) : undefined) ?? { assigned: 0, withForm: 0, notesDone: 0 }
+    return [
+      {
+        username: u.username,
+        name,
+        assigned: t.assigned,
+        withForm: t.withForm,
+        notesDone: t.notesDone,
+        progress: t.assigned > 0 ? Math.round((t.notesDone / t.assigned) * 100) : 0,
+      },
+    ]
   })
 }

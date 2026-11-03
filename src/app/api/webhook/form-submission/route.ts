@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
+import { secretsMatch } from "@/lib/guards"
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    if (body.secret !== process.env.WEBHOOK_SECRET) {
+    if (!secretsMatch(typeof body.secret === "string" ? body.secret : null, process.env.WEBHOOK_SECRET)) {
       return NextResponse.json({ error: "Invalid secret" }, { status: 401 })
     }
 

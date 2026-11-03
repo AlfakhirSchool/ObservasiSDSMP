@@ -1,160 +1,142 @@
 "use client"
 
-import { InterviewerStats } from "@/types"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Avatar } from "@/components/ui/avatar"
+import { CheckCircle2, CircleDashed, Loader2, UserCheck, Users } from "lucide-react"
+import { PageHeader } from "@/components/layout/page-header"
+import { StatCard } from "@/components/ui/stat-card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { cn, getInitials } from "@/lib/utils"
+import type { InterviewerMonitorRow } from "@/lib/data-service"
 
 interface Props {
-  interviewers: InterviewerStats[]
+  interviewers: InterviewerMonitorRow[]
 }
 
-function StatusBadge({ status }: { status: InterviewerStats["status"] }) {
-  if (status === "complete")
-    return <Badge variant="success">🟢 Selesai</Badge>
-  if (status === "in-progress")
-    return <Badge variant="warning">🟡 Sedang Proses</Badge>
-  return <Badge variant="muted">🔴 Belum Mulai</Badge>
+type MonitorStatus = "none" | "done" | "progress" | "idle"
+
+const STATUS_META: Record<MonitorStatus, { label: string; pill: string; bar: string }> = {
+  none: {
+    label: "Belum ada siswa",
+    pill: "bg-slate-50 text-slate-600 ring-slate-200",
+    bar: "bg-slate-300",
+  },
+  done: {
+    label: "Selesai",
+    pill: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    bar: "bg-emerald-500",
+  },
+  progress: {
+    label: "Sedang proses",
+    pill: "bg-blue-50 text-blue-700 ring-blue-200",
+    bar: "bg-blue-500",
+  },
+  idle: {
+    label: "Belum mulai",
+    pill: "bg-amber-50 text-amber-700 ring-amber-200",
+    bar: "bg-amber-400",
+  },
+}
+
+function getStatus(iv: InterviewerMonitorRow): MonitorStatus {
+  if (iv.assigned === 0) return "none"
+  if (iv.notesDone === iv.assigned) return "done"
+  if (iv.notesDone > 0 || iv.withForm > 0) return "progress"
+  return "idle"
 }
 
 export default function InterviewerMonitorClient({ interviewers }: Props) {
+  const rows = interviewers.map((iv) => ({ iv, status: getStatus(iv) }))
+  const count = (s: MonitorStatus) => rows.filter((r) => r.status === s).length
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Monitor Pewawancara</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Pantau progres setiap pewawancara dalam proses observasi
-        </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Monitor Pewawancara"
+        description="Pantau progres setiap pewawancara dalam proses observasi"
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total pewawancara" value={interviewers.length} icon={Users} tone="slate" />
+        <StatCard label="Selesai" value={count("done")} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Sedang proses" value={count("progress")} icon={Loader2} tone="blue" />
+        <StatCard label="Belum mulai" value={count("idle")} icon={CircleDashed} tone="amber" />
       </div>
 
-      {/* Summary stats */}
-      <div className="flex flex-wrap gap-4">
-        {[
-          {
-            label: "Total Pewawancara",
-            value: interviewers.length,
-            color: "text-slate-700",
-          },
-          {
-            label: "Selesai",
-            value: interviewers.filter((i) => i.status === "complete").length,
-            color: "text-emerald-600",
-          },
-          {
-            label: "Sedang Proses",
-            value: interviewers.filter((i) => i.status === "in-progress").length,
-            color: "text-amber-600",
-          },
-          {
-            label: "Belum Mulai",
-            value: interviewers.filter((i) => i.status === "not-started").length,
-            color: "text-rose-600",
-          },
-        ].map(({ label, value, color }) => (
-          <div
-            key={label}
-            className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm"
-          >
-            <span className={`text-xl font-bold ${color}`}>{value}</span>
-            <span className="text-sm text-slate-500">{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={UserCheck}
+            title="Belum ada pewawancara"
+            description="Akun pewawancara akan muncul di sini setelah dibuat."
+          />
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  {[
-                    "Pewawancara",
-                    "Email",
-                    "Ditugaskan",
-                    "Formulir Masuk",
-                    "Catatan Selesai",
-                    "Tingkat Selesai",
-                    "Status",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-4"
-                    >
-                      {h}
-                    </th>
-                  ))}
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Pewawancara</th>
+                  <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Ditugaskan</th>
+                  <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Formulir masuk</th>
+                  <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan selesai</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progres</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {interviewers.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-16 text-slate-400">
-                      Belum ada data pewawancara
-                    </td>
-                  </tr>
-                ) : (
-                  interviewers.map((iv) => (
-                    <tr
-                      key={iv.email}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
+              <tbody className="divide-y divide-slate-100">
+                {rows.map(({ iv, status }) => {
+                  const meta = STATUS_META[status]
+                  return (
+                    <tr key={iv.username} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <Avatar name={iv.name} size="sm" />
-                          <span className="font-semibold text-slate-900">
-                            {iv.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-500 text-xs">
-                        {iv.email}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-slate-700">
-                        {iv.assigned}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-blue-600">
-                          {iv.withResponses}
-                        </span>
-                        <span className="text-slate-400 text-xs">/{iv.assigned}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-emerald-600">
-                          {iv.notesSubmitted}
-                        </span>
-                        <span className="text-slate-400 text-xs">/{iv.assigned}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                (iv.completionRate ?? 0) === 100
-                                  ? "bg-emerald-500"
-                                  : (iv.completionRate ?? 0) > 0
-                                  ? "bg-amber-400"
-                                  : "bg-slate-300"
-                              }`}
-                              style={{ width: `${iv.completionRate ?? 0}%` }}
-                            />
+                          <div
+                            aria-hidden="true"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700"
+                          >
+                            {getInitials(iv.name)}
                           </div>
-                          <span className="text-xs font-semibold text-slate-600 w-10 text-right">
-                            {iv.completionRate ?? 0}%
-                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-900">{iv.name}</p>
+                            <p className="truncate text-xs text-slate-500">@{iv.username}</p>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={iv.status} />
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 tabular-nums">{iv.assigned}</td>
+                      <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <span className="font-semibold text-slate-900">{iv.withForm}</span>
+                        <span className="text-slate-500"> / {iv.assigned}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <span className="font-semibold text-slate-900">{iv.notesDone}</span>
+                        <span className="text-slate-500"> / {iv.assigned}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-2 w-28 overflow-hidden rounded-full bg-slate-100"
+                            role="progressbar"
+                            aria-valuenow={iv.progress}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`Progres ${iv.name}`}
+                          >
+                            <div className={cn("h-full rounded-full", meta.bar)} style={{ width: `${iv.progress}%` }} />
+                          </div>
+                          <span className="w-10 text-sm font-medium text-slate-700 tabular-nums">{iv.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset", meta.pill)}>
+                          {meta.label}
+                        </span>
                       </td>
                     </tr>
-                  ))
-                )}
+                  )
+                })}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   )
 }

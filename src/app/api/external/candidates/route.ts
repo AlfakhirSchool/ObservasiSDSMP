@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { secretsMatch } from "@/lib/guards"
 
 function checkApiKey(req: Request) {
-  const key = req.headers.get("x-api-key")
-  return key === process.env.EXTERNAL_API_KEY
+  return secretsMatch(req.headers.get("x-api-key"), process.env.EXTERNAL_API_KEY)
 }
 
 export async function GET(req: Request) {

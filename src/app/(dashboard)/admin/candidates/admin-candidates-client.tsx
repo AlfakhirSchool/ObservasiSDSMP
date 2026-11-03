@@ -1,25 +1,35 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
+import { startPolling } from "@/lib/polling"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/layout/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Search,
   Plus,
   Download,
-  Filter,
+  Upload,
   Trash2,
   QrCode,
-  ArrowRight,
-  Edit,
-  RefreshCw
+  Pencil,
+  RefreshCw,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+  FileText,
+  Users,
 } from "lucide-react"
 import { formatDate, cn } from "@/lib/utils"
 import { ITEMS_PER_PAGE, INTERVIEWERS, ROOMS } from "@/lib/constants"
+import { PeriodFilter } from "@/components/ui/period-filter"
+import { PERIOD_ALL, PERIOD_LATEST, filterByPeriod, listPeriods, type PeriodFilterValue } from "@/lib/period"
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { QRCodeSVG } from "qrcode.react"
+import { SuratBulkDialog } from "./surat-bulk-dialog"
 import { addCandidate, deleteCandidate, updateCandidateInterviewer, updateCandidateRoom, updateCandidate, updateCandidateStatus, importCandidates } from "@/lib/actions"
 import * as XLSX from "xlsx"
 
@@ -34,9 +44,16 @@ interface Candidate {
   selectedInterviewer?: string | null
   parentPhone?: string | null
   correctedName?: string | null
+  academicYear?: string | null
+  gelombang: number
+  nim?: string | null
+  note?: { recommendation: string } | null
+  /** Bentuk dari /api/candidates (polling); halaman awal memakai `note`. */
+  notes?: { recommendation: string }[]
   academicTestResult?: {
     totalScore: number
     subjectScores: string
+    createdAt: Date | string
   } | null
 }
 
@@ -44,20 +61,51 @@ interface Props {
   candidates: Candidate[]
 }
 
-const thStyle = "px-4 py-3 text-[11px] font-bold text-[#94A3B8] uppercase tracking-[0.05em] text-center whitespace-nowrap border-b border-[#E2E8F0]"
-const tdCenterStyle = "px-4 py-3.5 text-[13px] text-[#475569] text-center whitespace-nowrap border-b border-[#F1F5F9]"
+const thCls = "px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap border-b border-slate-200"
+const controlCls = "h-10 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+const cellSelectCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 cursor-pointer outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+const iconBtnCls = "flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+const menuItemCls = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:opacity-50"
+const labelCls = "block text-sm font-medium text-slate-700"
+const dialogHeaderCls = "border-b border-slate-100 px-6 py-4"
+const dialogTitleCls = "text-base font-semibold text-slate-900"
+
+const pillCls = "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset"
+
+function isLevel(value: string): value is "SD" | "SMP" {
+  return value === "SD" || value === "SMP"
+}
+
+function formatShortDate(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date
+  if (Number.isNaN(d.getTime())) return "-"
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+}
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case "RESPONSE_RECEIVED":
-      return <Badge variant="success">Formulir Masuk</Badge>
+      return <span className={cn(pillCls, "bg-blue-50 text-blue-700 ring-blue-200")}>Formulir Masuk</span>
     case "PENDING":
-      return <Badge variant="muted">Belum Ada Formulir</Badge>
+      return <span className={cn(pillCls, "bg-slate-50 text-slate-600 ring-slate-200")}>Belum Ada Formulir</span>
     case "REVIEWED":
-      return <Badge variant="info">Selesai</Badge>
+      return <span className={cn(pillCls, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Selesai</span>
     default:
-      return <Badge variant="warning">Menunggu</Badge>
+      return <span className={cn(pillCls, "bg-amber-50 text-amber-700 ring-amber-200")}>Menunggu</span>
   }
+}
+
+function GradePill({ score }: { score: number }) {
+  const grade = score >= 86 ? "A" : score >= 71 ? "B" : score >= 56 ? "C" : "D"
+  const tone =
+    grade === "A"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+      : grade === "B"
+        ? "bg-blue-50 text-blue-700 ring-blue-200"
+        : grade === "C"
+          ? "bg-amber-50 text-amber-700 ring-amber-200"
+          : "bg-rose-50 text-rose-700 ring-rose-200"
+  return <span className={cn(pillCls, tone)}>{grade}</span>
 }
 
 export default function AdminCandidatesClient({ candidates: initialCandidates }: Props) {
@@ -70,6 +118,8 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
   const [isAddingCandidate, setIsAddingCandidate] = useState(false)
   const [statusFilter, setStatusFilter] = useState("Semua Status")
   const [levelFilter, setLevelFilter] = useState("Semua Jenjang")
+  const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
+  const periods = useMemo(() => listPeriods(candidates), [candidates])
   const [origin, setOrigin] = useState("")
   const [role, setRole] = useState("parent")
   const [targetDelete, setTargetDelete] = useState<Candidate | null>(null)
@@ -77,16 +127,25 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
   const [isDeleting, setIsDeleting] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
-  const [downloadingZip, setDownloadingZip] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [suratBulkOpen, setSuratBulkOpen] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
 
-  const getPasswordForCandidate = (c: any) => {
-    if (c.parentPhone) {
-      const cleaned = c.parentPhone.replace(/[^0-9]/g, "")
-      if (cleaned.length >= 6) return cleaned
+  useEffect(() => {
+    if (!exportOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
     }
-    const cleanedName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6)
-    return `${cleanedName}123`
-  }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExportOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [exportOpen])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -117,7 +176,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
 
         const res = await importCandidates(formatted)
         if (res.success) {
-          toast.success(`${res.count} siswa berhasil diimpor!`)
+          toast.success(`${res.count} siswa berhasil diimpor!${(res.skipped ?? 0) > 0 ? ` ${res.skipped} data kembar dilewati.` : ""}`)
           router.refresh()
         } else {
           toast.error(res.error || "Gagal mengimpor.")
@@ -153,9 +212,9 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
     }
 
     poll() // initial fetch
-    const interval = setInterval(poll, 10000) // Poll every 10s
+    const stopPolling = startPolling(poll, 30000) // 30s dan berhenti saat tab tersembunyi
     return () => {
-      clearInterval(interval)
+      stopPolling()
       abortController?.abort()
     }
   }, [])
@@ -167,7 +226,9 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
   }, [])
 
   const filtered = useMemo(() => {
-    return candidates.filter((c) => {
+    // Mencari nama menembus penyembunyian data lama agar siswa lama tetap bisa ditemukan.
+    const effectivePeriod = period === PERIOD_LATEST && search.trim() ? PERIOD_ALL : period
+    return filterByPeriod(candidates, effectivePeriod, periods).filter((c) => {
       const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
       const matchesStatus = statusFilter === "Semua Status" || 
         (statusFilter === "Formulir Masuk" && c.status === "RESPONSE_RECEIVED") ||
@@ -177,7 +238,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
       
       return matchesSearch && matchesStatus && matchesLevel
     })
-  }, [candidates, search, statusFilter, levelFilter])
+  }, [candidates, periods, period, search, statusFilter, levelFilter])
 
   // Grade conversion: 86-100:A, 71-85:B, 56-70:C, <56:D
   const getGrade = (score: number): { grade: string; label: string } => {
@@ -317,7 +378,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
         "Bahasa Inggris": bIng === "-" ? "-" : Number(bIng),
         "Agama Islam": agama === "-" ? "-" : Number(agama),
         "IPA": ipa === "-" ? "-" : Number(ipa),
-        "Password PDF": getPasswordForCandidate(c)
+        "NIM (Password PDF)": c.nim ?? ""
       }
     })
 
@@ -337,605 +398,466 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
     })
     worksheet["!cols"] = maxLens.map(len => ({ wch: len + 3 }))
 
-    XLSX.writeFile(workbook, `Hasil_Observasi_Akademik_Gelombang_2_${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(workbook, `Hasil_Observasi_Akademik_${new Date().toISOString().split('T')[0]}.xlsx`)
     toast.success("Excel berhasil diunduh!")
   }
 
-  const downloadAllPDFsAsZip = async () => {
-    const candidatesWithTest = filtered.filter(c => c.academicTestResult)
-    const totalFiltered = filtered.length
-    const withoutTest = totalFiltered - candidatesWithTest.length
-
-    if (candidatesWithTest.length === 0) {
-      toast.error(
-        `Belum ada siswa yang sudah ujian akademik dari ${totalFiltered} siswa yang tampil. ` +
-        `Pastikan siswa sudah mengerjakan tes terlebih dahulu.`,
-        { duration: 5000 }
-      )
-      return
-    }
-
-    if (withoutTest > 0) {
-      toast(`Mengunduh ${candidatesWithTest.length} siswa yang sudah ujian. ${withoutTest} siswa belum ujian akan dilewati.`, {
-        icon: "ℹ️",
-        duration: 4000,
-      })
-    }
-
-    setDownloadingZip(true)
-    const toastId = toast.loading(`Menyiapkan ${candidatesWithTest.length} file PDF...`)
-    
-    try {
-      const { jsPDF } = await import("jspdf")
-      const { default: JSZip } = await import("jszip")
-      
-      const zip = new JSZip()
-      
-      const primaryColor = [4, 120, 87] 
-      const secondaryColor = [30, 41, 59]
-
-      for (let i = 0; i < candidatesWithTest.length; i++) {
-        const c = candidatesWithTest[i]
-        const result = c.academicTestResult!
-        
-        toast.loading(`Membuat PDF ${i + 1}/${candidatesWithTest.length}: ${c.name}...`, { id: toastId })
-
-        const doc = new jsPDF()
-
-
-        // Top border/banner
-        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-        doc.rect(0, 0, 210, 8, "F")
-        
-        // Header
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(18)
-        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-        doc.text("AL FAKHIR ISLAMIC SCHOOL", 20, 22)
-        
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(9)
-        doc.setTextColor(100, 116, 139)
-        doc.text("Jl. Raya Al Fakhir No. 1, Observasi Akademik Gelombang 2", 20, 27)
-        
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(12)
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2])
-        doc.text("LAPORAN HASIL OBSERVASI AKADEMIK (GELOMBANG 2)", 20, 38)
-        
-        // Draw line
-        doc.setDrawColor(226, 232, 240)
-        doc.setLineWidth(0.5)
-        doc.line(20, 42, 190, 42)
-        
-        // Student Info
-        doc.setFontSize(9)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(100, 116, 139)
-        doc.text("DATA CALON SISWA", 20, 50)
-        
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(30, 41, 59)
-        
-        const infoY = 56
-        doc.setFont("helvetica", "bold")
-        doc.text("Nama Calon Siswa", 20, infoY)
-        doc.text("Jenjang", 20, infoY + 6)
-        doc.text("Ruangan Ujian", 20, infoY + 12)
-        
-        doc.setFont("helvetica", "normal")
-        doc.text(`:  ${c.correctedName || c.name}`, 55, infoY)
-        doc.text(`:  ${c.level} (SMP)`, 55, infoY + 6)
-        doc.text(`:  ${c.room || "-"}`, 55, infoY + 12)
-        
-        doc.setFont("helvetica", "bold")
-        doc.text("Tanggal Observasi", 115, infoY)
-        doc.text("Status", 115, infoY + 6)
-        doc.text("Pewawancara", 115, infoY + 12)
-        
-        doc.setFont("helvetica", "normal")
-        doc.text(`:  ${new Date(c.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}`, 145, infoY)
-        doc.text(`:  SELESAI`, 145, infoY + 6)
-        doc.text(`:  ${c.selectedInterviewer || "Tim Observasi"}`, 145, infoY + 12)
-        
-        // Draw line
-        doc.line(20, 76, 190, 76)
-        
-        // Subject Scores Table Header
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(100, 116, 139)
-        doc.text("HASIL PER MATA PELAJARAN (SUBJECT PERFORMANCE)", 20, 84)
-        
-        const tableHeaderY = 90
-        doc.setFillColor(248, 250, 252) 
-        doc.rect(20, tableHeaderY, 170, 8, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(9)
-        doc.setTextColor(71, 85, 105)
-        
-        doc.text("MATA PELAJARAN", 25, tableHeaderY + 5.5)
-        doc.text("SOAL", 95, tableHeaderY + 5.5)
-        doc.text("BENAR", 115, tableHeaderY + 5.5)
-        doc.text("NILAI", 135, tableHeaderY + 5.5)
-        doc.text("PREDIKAT", 160, tableHeaderY + 5.5)
-        
-        // Parse subject scores
-        let bIndo = { correct: 0, total: 5 }
-        let mat = { correct: 0, total: 5 }
-        let bIng = { correct: 0, total: 5 }
-        let agama = { correct: 0, total: 5 }
-        let ipa = { correct: 0, total: 5 }
-        
-        if (result.subjectScores) {
-          try {
-            const parsed = JSON.parse(result.subjectScores)
-            if (parsed["Bahasa Indonesia"]) bIndo = parsed["Bahasa Indonesia"]
-            if (parsed["Matematika"]) mat = parsed["Matematika"]
-            if (parsed["Bahasa Inggris"]) bIng = parsed["Bahasa Inggris"]
-            if (parsed["Agama Islam"]) agama = parsed["Agama Islam"]
-            if (parsed["IPA"]) ipa = parsed["IPA"]
-          } catch (e) {
-            console.error(e)
-          }
-        }
-        
-        const getSubjectPredicateLocal = (score: number) => {
-          if (score >= 86) return { grade: "A", desc: "Sangat Baik" }
-          if (score >= 71) return { grade: "B", desc: "Baik" }
-          if (score >= 56) return { grade: "C", desc: "Cukup" }
-          return { grade: "D", desc: "Kurang" }
-        }
-
-        const subjects = [
-          { name: "Bahasa Indonesia", ...bIndo },
-          { name: "Matematika", ...mat },
-          { name: "Bahasa Inggris", ...bIng },
-          { name: "Agama Islam", ...agama },
-          { name: "IPA", ...ipa }
-        ]
-        
-        let currentY = tableHeaderY + 8
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(30, 41, 59)
-        
-        subjects.forEach((subj, idx) => {
-          if (idx % 2 === 1) {
-            doc.setFillColor(254, 254, 254)
-          } else {
-            doc.setFillColor(241, 245, 249)
-          }
-          doc.rect(20, currentY, 170, 8, "F")
-          
-          const score = (subj.correct / subj.total) * 100
-          const pred = getSubjectPredicateLocal(score)
-          
-          doc.text(subj.name, 25, currentY + 5.5)
-          doc.text(subj.total.toString(), 95, currentY + 5.5)
-          doc.text(subj.correct.toString(), 115, currentY + 5.5)
-          doc.setFont("helvetica", "bold")
-          doc.text(score.toFixed(0), 135, currentY + 5.5)
-          doc.text(`${pred.grade} (${pred.desc})`, 160, currentY + 5.5)
-          doc.setFont("helvetica", "normal")
-          
-          currentY += 8
-        })
-        
-        // Total Summary Row
-        doc.setFillColor(236, 253, 245) 
-        doc.rect(20, currentY, 170, 10, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(4, 120, 87)
-        
-        doc.text("TOTAL SKOR AKHIR", 25, currentY + 6.5)
-        doc.setFontSize(12)
-        doc.text(result.totalScore.toFixed(0), 135, currentY + 7)
-        
-        const overallPred = getSubjectPredicateLocal(result.totalScore)
-        doc.setFontSize(9)
-        doc.text(`${overallPred.grade} - ${overallPred.desc}`, 160, currentY + 6.5)
-        
-        // Footer / Signatures
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(71, 85, 105)
-        
-        const footerY = currentY + 30
-        doc.text("Tangerang Selatan, " + new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }), 135, footerY)
-        doc.text("Pewawancara / Assessor,", 135, footerY + 6)
-        
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(30, 41, 59)
-        doc.text(c.selectedInterviewer || "Tim Observasi Al Fakhir", 135, footerY + 28)
-        
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(148, 163, 184)
-        doc.setFontSize(7)
-        doc.text("* Dokumen ini dihasilkan secara otomatis oleh Sistem Observasi Al Fakhir.", 20, 275)
-        doc.text("Halaman 1 dari 1", 175, 275)
-        
-        const pdfArrayBuffer = doc.output("arraybuffer")
-        const safeCandidateName = c.name.replace(/[^a-zA-Z0-9\s]/g, "").trim().replace(/\s+/g, "_")
-        zip.file(`Hasil_Observasi_Akademik_${safeCandidateName}.pdf`, pdfArrayBuffer)
-
-      }
-
-      toast.loading("Mengompres file ZIP...", { id: toastId })
-      const content = await zip.generateAsync({ type: "blob" })
-      
-      const zipFileName = `Hasil_Observasi_Akademik_Gelombang_2_${new Date().toISOString().split('T')[0]}.zip`
-      const zipBlob = new Blob([await content.arrayBuffer()], { type: "application/octet-stream" })
-      const url = URL.createObjectURL(zipBlob)
-      const link = document.createElement("a")
-      link.style.display = "none"
-      link.href = url
-      link.download = zipFileName
-      document.body.appendChild(link)
-      link.click()
-      setTimeout(() => {
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      }, 1500)
-
-      toast.success("Semua PDF berhasil diunduh dalam file ZIP!", { id: toastId })
-
-    } catch (err) {
-      console.error(err)
-      toast.error("Gagal mengunduh semua PDF.", { id: toastId })
-    } finally {
-      setDownloadingZip(false)
-    }
-  }
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
+  const closeAndRun = (fn: () => void) => {
+    setExportOpen(false)
+    fn()
+  }
+
+  const formLink = (id?: string) =>
+    `${origin || "https://dashboard-alfakhir.vercel.app"}/form/${id}${role === "student" ? "?role=student" : ""}`
+
   return (
-    <div className="animate-in fade-in duration-500">
-      {/* Page Header */}
-      <div className="mb-6 space-y-4">
-        {/* Title Row */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[22px] font-bold text-[#0F172A] m-0 italic uppercase tracking-tight">Daftar Seluruh Siswa</h2>
-            <p className="text-[13px] text-[#94A3B8] m-0 mt-1 font-medium">Monitoring data real-time untuk Unit SD &amp; SMP</p>
-          </div>
-          <Button 
-            onClick={() => setIsAddingCandidate(true)}
-            className="h-11 bg-slate-900 hover:bg-black text-white rounded-xl px-6 text-[13px] font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2"
-          >
-            <Plus size={18} />
-            Tambah Siswa Baru
-          </Button>
-        </div>
-
-        {/* Action Bar */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl px-4 py-3 shadow-sm flex flex-wrap items-center gap-2">
-          {/* Import */}
-          <input 
-            type="file" 
-            id="excel-upload" 
-            className="hidden" 
-            accept=".xlsx, .xls"
-            onChange={handleFileUpload}
-          />
-          <Button 
-            variant="outline" 
-            onClick={() => document.getElementById('excel-upload')?.click()}
-            disabled={isImporting}
-            className="h-9 border-slate-200 text-slate-600 rounded-lg px-3 text-[12px] font-semibold hover:bg-slate-50 transition-all flex items-center gap-1.5"
-          >
-            {isImporting ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
-            Import Excel
-          </Button>
-
-          {/* Divider */}
-          <div className="h-6 w-px bg-slate-200 mx-1" />
-
-          {/* Export group */}
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              onClick={exportToExcel}
-              className="h-9 border-emerald-100 bg-emerald-50/30 text-emerald-700 hover:bg-emerald-50 rounded-lg px-3 text-[12px] font-semibold transition-all flex items-center gap-1.5"
-            >
-              <Download size={13} />
-              Ekspor Data (.xlsx)
+    <div className="space-y-6">
+      <PageHeader
+        title="Daftar Siswa"
+        description="Pantau data siswa dan progres observasi Unit SD & SMP"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setSuratBulkOpen(true)} className="h-10 gap-2 px-4">
+              <FileText size={16} aria-hidden="true" />
+              Unduh Raport
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={exportNilaiToExcel}
-              className="h-9 border-emerald-200 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-3 text-[12px] font-semibold transition-all flex items-center gap-1.5"
+            <Button
+              onClick={() => setIsAddingCandidate(true)}
+              className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
             >
-              <Download size={13} />
-              Unduh Nilai (A/B/C/D)
+              <Plus size={16} aria-hidden="true" />
+              Tambah Siswa
             </Button>
+          </>
+        }
+      />
+
+      {/* Toolbar */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                aria-label="Cari nama siswa"
+                placeholder="Cari nama siswa..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                className={cn(controlCls, "w-full pl-9 pr-3")}
+              />
+            </div>
+            <select
+              aria-label="Filter status"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+              className={cn(controlCls, "cursor-pointer px-3 sm:w-48")}
+            >
+              <option>Semua Status</option>
+              <option>Formulir Masuk</option>
+              <option>Belum Ada</option>
+              <option>Selesai</option>
+            </select>
+            <select
+              aria-label="Filter jenjang"
+              value={levelFilter}
+              onChange={(e) => { setLevelFilter(e.target.value); setPage(1) }}
+              className={cn(controlCls, "cursor-pointer px-3 sm:w-40")}
+            >
+              <option>Semua Jenjang</option>
+              <option>SD</option>
+              <option>SMP</option>
+            </select>
+            <PeriodFilter periods={periods} value={period} onChange={(v) => { setPeriod(v); setPage(1) }} />
           </div>
 
-          {/* Divider */}
-          <div className="h-6 w-px bg-slate-200 mx-1" />
-
-          {/* PDF group */}
-          <Button 
-            variant="outline" 
-            onClick={downloadAllPDFsAsZip}
-            disabled={downloadingZip}
-            className="h-9 border-indigo-100 bg-indigo-50/20 text-indigo-700 hover:bg-indigo-50 rounded-lg px-3 text-[12px] font-semibold transition-all flex items-center gap-1.5"
-          >
-            {downloadingZip ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
-            Unduh Semua PDF (.zip)
-          </Button>
-        </div>
-      </div>
-
-      {/* Search + Filter Bar */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 mb-6 shadow-sm flex flex-col md:flex-row gap-3 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            placeholder="Cari nama siswa..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="w-full h-10 border border-[#E2E8F0] rounded-xl pl-10 pr-3.5 text-[13px] text-[#0F172A] outline-none bg-[#F8FAFC] focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
-          />
-        </div>
-        <select 
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-          className="h-10 border border-[#E2E8F0] rounded-xl px-3 text-[13px] font-bold text-[#475569] bg-[#F8FAFC] cursor-pointer outline-none hover:border-[#CBD5E1] transition-all min-w-[150px]"
-        >
-          <option>Semua Status</option>
-          <option>Formulir Masuk</option>
-          <option>Belum Ada</option>
-          <option>Selesai</option>
-        </select>
-        <select 
-          value={levelFilter}
-          onChange={(e) => { setLevelFilter(e.target.value); setPage(1) }}
-          className="h-10 border border-[#E2E8F0] rounded-xl px-3 text-[13px] font-bold text-[#475569] bg-[#F8FAFC] cursor-pointer outline-none hover:border-[#CBD5E1] transition-all min-w-[150px]"
-        >
-          <option>Semua Jenjang</option>
-          <option>SD</option>
-          <option>SMP</option>
-        </select>
-      </div>
-
-      {/* TABLE */}
-      <div className="bg-white border border-[#E2E8F0] rounded-[32px] shadow-sm overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50">
-                <th className={cn(thStyle, "w-12")}>#</th>
-                <th className={cn(thStyle, "text-left")}>Nama Siswa</th>
-                <th className={cn(thStyle, "w-24")}>Jenjang</th>
-                <th className={cn(thStyle, "w-32")}>Ruangan</th>
-                <th className={cn(thStyle, "w-48")}>Pewawancara</th>
-                <th className={cn(thStyle, "w-36")}>Status</th>
-                <th className={cn(thStyle, "w-32")}>Skor Akad.</th>
-                <th className={cn(thStyle, "w-40")}>Tanggal</th>
-                <th className={cn(thStyle, "w-32")}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-24 text-center text-[#94A3B8]">
-                    <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4">
-                      <Search size={40} className="text-slate-200" />
-                    </div>
-                    <div className="text-[15px] font-bold text-[#475569] mb-1">Tidak ada data siswa ditemukan</div>
-                    <div className="text-[13px]">Coba ubah filter atau tambah data siswa baru</div>
-                  </td>
-                </tr>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <input
+              type="file"
+              id="excel-upload"
+              className="hidden"
+              accept=".xlsx, .xls"
+              onChange={handleFileUpload}
+            />
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById("excel-upload")?.click()}
+              disabled={isImporting}
+              className="h-10 gap-2 px-4"
+            >
+              {isImporting ? (
+                <RefreshCw size={16} className="animate-spin" aria-hidden="true" />
               ) : (
-                paginated.map((c, i) => (
-                  <tr 
-                    key={c.id} 
-                    className={cn(
-                      "transition-all duration-300 group border-b border-[#F1F5F9]",
-                      c.level === "SD" ? "hover:bg-blue-50/30" : "hover:bg-purple-50/30"
-                    )}
+                <Upload size={16} aria-hidden="true" />
+              )}
+              Import Excel
+            </Button>
+
+            <div className="relative" ref={exportRef}>
+              <Button
+                variant="outline"
+                onClick={() => setExportOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={exportOpen}
+                className="h-10 gap-2 px-4"
+              >
+                <Download size={16} aria-hidden="true" />
+                Ekspor
+                <ChevronDown
+                  size={16}
+                  aria-hidden="true"
+                  className={cn("transition-transform", exportOpen && "rotate-180")}
+                />
+              </Button>
+              {exportOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => closeAndRun(exportToExcel)}
+                    className={menuItemCls}
                   >
-                    <td className={tdCenterStyle}>{(page - 1) * ITEMS_PER_PAGE + i + 1}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="font-bold text-[13px] text-[#0F172A] group-hover:text-primary transition-colors">
-                        {c.correctedName || c.name}
-                      </div>
-                      <div className="text-[11px] text-[#94A3B8] mt-0.5 font-black uppercase tracking-widest">
-                        {c.parentPhone ? (
-                          <span className="text-emerald-600">📱 {c.parentPhone}</span>
-                        ) : (
-                          "Belum Ada No. HP"
-                        )}
-                      </div>
-                    </td>
-                    <td className={tdCenterStyle}>
-                      <select 
-                        defaultValue={c.level}
-                        onChange={async (e) => {
-                          await updateCandidate(c.id, { level: e.target.value as any })
-                        }}
-                        className={cn(
-                          "w-full bg-slate-50 border border-[#E2E8F0] rounded-lg px-2 py-1 text-[11px] font-bold outline-none focus:border-primary transition-all cursor-pointer",
-                          c.level === "SD" ? "text-sd" : "text-smp"
-                        )}
-                      >
-                        <option value="SD">SD</option>
-                        <option value="SMP">SMP</option>
-                      </select>
-                    </td>
-                    <td className={tdCenterStyle}>
-                      <select 
-                        defaultValue={c.room || ""}
-                        onChange={async (e) => {
-                          await updateCandidateRoom(c.id, e.target.value)
-                        }}
-                        className="w-full bg-slate-50 border border-[#E2E8F0] rounded-lg px-1 py-1 text-[11px] font-bold text-[#475569] outline-none focus:border-primary transition-all"
-                      >
-                        <option value="">-</option>
-                        {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </td>
-                    <td className={tdCenterStyle}>
-                      <select 
-                        defaultValue={c.selectedInterviewer || ""}
-                        onChange={async (e) => {
-                          await updateCandidateInterviewer(c.id, e.target.value)
-                        }}
-                        className="w-full bg-slate-50 border border-[#E2E8F0] rounded-lg px-2 py-1 text-[11px] font-bold text-[#475569] outline-none focus:border-primary transition-all"
-                      >
-                        <option value="">Pilih...</option>
-                        {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
-                      </select>
-                    </td>
-                    <td className={tdCenterStyle}>
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className={tdCenterStyle}>
-                      {c.level === "SMP" ? (
-                        c.academicTestResult ? (
-                          <div className="flex flex-col items-center">
-                            <span className="font-black text-primary text-[14px] italic">{c.academicTestResult.totalScore.toFixed(0)}</span>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Teruji</span>
+                    <FileSpreadsheet size={16} className="text-emerald-600" aria-hidden="true" />
+                    Data (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => closeAndRun(exportNilaiToExcel)}
+                    className={menuItemCls}
+                  >
+                    <FileSpreadsheet size={16} className="text-emerald-600" aria-hidden="true" />
+                    Nilai (A/B/C/D) (.xlsx)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-500">
+          Menampilkan <span className="font-semibold tabular-nums text-slate-700">{filtered.length}</span> dari{" "}
+          <span className="font-semibold tabular-nums text-slate-700">{candidates.length}</span> siswa
+        </p>
+      </div>
+
+      <SuratBulkDialog
+        open={suratBulkOpen}
+        onOpenChange={setSuratBulkOpen}
+        candidates={suratBulkOpen ? candidates.map((c) => ({ ...c, note: c.note ?? c.notes?.[0] ?? null })) : []}
+      />
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {paginated.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Tidak ada data siswa ditemukan"
+            description="Coba ubah kata kunci atau filter, atau tambahkan data siswa baru."
+            action={
+              <Button
+                onClick={() => setIsAddingCandidate(true)}
+                className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+              >
+                <Plus size={16} aria-hidden="true" />
+                Tambah Siswa
+              </Button>
+            }
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1100px] border-collapse text-left">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className={cn(thCls, "w-14 text-center")}>No</th>
+                  <th className={cn(thCls, "min-w-[220px]")}>Nama Siswa</th>
+                  <th className={cn(thCls, "w-36")}>Gelombang</th>
+                  <th className={cn(thCls, "w-28")}>Jenjang</th>
+                  <th className={cn(thCls, "w-28")}>Ruangan</th>
+                  <th className={cn(thCls, "min-w-[250px]")}>Pewawancara</th>
+                  <th className={cn(thCls, "w-44")}>Status</th>
+                  <th className={cn(thCls, "w-32")}>Skor Akademik</th>
+                  <th className={cn(thCls, "w-32")}>Tanggal</th>
+                  <th className={cn(thCls, "w-44 text-right")}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginated.map((c, i) => {
+                  const displayName = c.correctedName || c.name
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-center text-sm tabular-nums text-slate-500">
+                        {(page - 1) * ITEMS_PER_PAGE + i + 1}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-semibold text-slate-900">{displayName}</div>
+                        <div className="mt-0.5 text-sm text-slate-500">
+                          {c.parentPhone ? c.parentPhone : "Belum ada no. HP"}
+                        </div>
+                        <div className={cn("mt-0.5 text-sm", c.nim ? "text-slate-500" : "text-amber-700")}>
+                          {c.nim ? `NIM ${c.nim}` : "NIM belum diisi"}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <div className="text-sm font-medium text-slate-900">Gelombang {c.gelombang}</div>
+                        <div className="mt-0.5 text-sm text-slate-500">TA {c.academicYear ?? "-"}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          aria-label={`Jenjang ${displayName}`}
+                          defaultValue={c.level}
+                          onChange={async (e) => {
+                            const value = e.target.value
+                            if (isLevel(value)) await updateCandidate(c.id, { level: value })
+                          }}
+                          className={cn(
+                            cellSelectCls,
+                            "w-24 font-semibold",
+                            c.level === "SD" ? "text-sd" : "text-smp"
+                          )}
+                        >
+                          <option value="SD">SD</option>
+                          <option value="SMP">SMP</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          aria-label={`Ruangan ${displayName}`}
+                          defaultValue={c.room || ""}
+                          onChange={async (e) => {
+                            await updateCandidateRoom(c.id, e.target.value)
+                          }}
+                          className={cn(cellSelectCls, "w-24")}
+                        >
+                          <option value="">-</option>
+                          {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          aria-label={`Pewawancara ${displayName}`}
+                          defaultValue={c.selectedInterviewer || ""}
+                          onChange={async (e) => {
+                            await updateCandidateInterviewer(c.id, e.target.value)
+                          }}
+                          className={cn(cellSelectCls, "w-full min-w-[14rem]")}
+                        >
+                          <option value="">Pilih pewawancara...</option>
+                          {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={c.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.academicTestResult ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold tabular-nums text-slate-900">
+                              {c.academicTestResult.totalScore.toFixed(0)}
+                            </span>
+                            <GradePill score={c.academicTestResult.totalScore} />
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-300 font-bold italic uppercase">Belum Ujian</span>
-                        )
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className={cn(tdCenterStyle, "text-[12px] text-[#94A3B8]")}>
-                      {formatDate(c.createdAt)}
-                    </td>
-                    <td className={tdCenterStyle}>
-                      <div className="flex justify-center gap-2">
-                        <button 
-                          onClick={() => setEditingCandidate(c)}
-                          className="w-8 h-8 rounded-lg border border-[#E2E8F0] bg-white flex items-center justify-center text-[#94A3B8] hover:text-primary transition-all"
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={() => setSelectedCandidate(c)}
-                          className="w-8 h-8 rounded-lg border border-[#E2E8F0] bg-white flex items-center justify-center text-[#94A3B8] hover:text-primary transition-all"
-                          title="QR Code"
-                        >
-                          <QrCode size={14} />
-                        </button>
-                        <button 
-                          onClick={() => setTargetReset(c)}
-                          className="w-8 h-8 rounded-lg border border-amber-100 bg-white flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all"
-                          title="Reset Status"
-                        >
-                          <RefreshCw size={14} />
-                        </button>
-                        <button 
-                          onClick={() => setTargetDelete(c)}
-                          className="w-8 h-8 rounded-lg border border-[#FEE2E2] bg-white flex items-center justify-center text-[#EF4444] hover:bg-[#FEE2E2] transition-all"
-                          title="Hapus"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-500">
+                        {formatShortDate(c.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingCandidate(c)}
+                            className={iconBtnCls}
+                            aria-label={`Edit ${displayName}`}
+                            title="Edit"
+                          >
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCandidate(c)}
+                            className={iconBtnCls}
+                            aria-label={`QR Code ${displayName}`}
+                            title="QR Code"
+                          >
+                            <QrCode size={16} aria-hidden="true" />
+                          </button>
+                          {c.level === "SMP" && (
+                            <a
+                              href={`/surat/${c.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={iconBtnCls}
+                              aria-label={`Raport ${displayName}`}
+                              title="Raport (surat hasil observasi)"
+                            >
+                              <FileText size={16} aria-hidden="true" />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setTargetReset(c)}
+                            className={iconBtnCls}
+                            aria-label={`Reset status ${displayName}`}
+                            title="Reset Status"
+                          >
+                            <RefreshCw size={16} aria-hidden="true" />
+                          </button>
+                          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+                          <button
+                            type="button"
+                            onClick={() => setTargetDelete(c)}
+                            className={cn(iconBtnCls, "text-rose-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700")}
+                            aria-label={`Hapus ${displayName}`}
+                            title="Hapus"
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {/* Pagination Controls */}
+        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-8 py-6 bg-white border-t border-[#F1F5F9]">
-            <div className="text-[12px] font-bold text-[#94A3B8] uppercase tracking-wider italic">
-              Menampilkan {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, filtered.length)} dari {filtered.length} Siswa
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row">
+            <div className="text-sm text-slate-500">
+              Menampilkan <span className="tabular-nums">{(page - 1) * ITEMS_PER_PAGE + 1}</span>–
+              <span className="tabular-nums">{Math.min(page * ITEMS_PER_PAGE, filtered.length)}</span> dari{" "}
+              <span className="tabular-nums">{filtered.length}</span> siswa
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="h-10 px-6 rounded-2xl border-slate-200 text-[#475569] font-black uppercase tracking-tight italic hover:bg-slate-50 disabled:opacity-30 transition-all active:scale-95"
+                className="h-9 gap-1 px-3"
               >
+                <ChevronLeft size={16} aria-hidden="true" />
                 Sebelumnya
               </Button>
-              <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[13px] font-black text-slate-900 italic">
-                {page}
-              </div>
+              <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-slate-600">
+                {page} / {totalPages}
+              </span>
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="h-10 px-6 rounded-2xl border-slate-200 text-[#475569] font-black uppercase tracking-tight italic hover:bg-slate-50 disabled:opacity-30 transition-all active:scale-95"
+                className="h-9 gap-1 px-3"
               >
                 Selanjutnya
+                <ChevronRight size={16} aria-hidden="true" />
               </Button>
             </div>
           </div>
         )}
       </div>
+
       {/* Edit Candidate Dialog */}
-      <Dialog open={!!editingCandidate} onOpenChange={() => setEditingCandidate(null)}>
-        <DialogContent className="max-w-md rounded-3xl p-0 bg-white overflow-hidden border-none shadow-2xl">
-          <DialogHeader className="px-8 pt-8 pb-4 bg-slate-50/50">
-            <DialogTitle className="text-[18px] font-black text-[#0F172A] uppercase tracking-tight">
-              Edit Data Siswa
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form 
+      <Dialog
+        open={!!editingCandidate}
+        onOpenChange={() => setEditingCandidate(null)}
+        className="max-w-md shadow-xl"
+      >
+        <DialogHeader className={dialogHeaderCls}>
+          <DialogTitle className={dialogTitleCls}>Edit Data Siswa</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="p-0">
+          <form
             onSubmit={async (e) => {
               e.preventDefault()
               if (!editingCandidate) return
               const formData = new FormData(e.currentTarget)
-              const name = formData.get("name") as string
-              const level = formData.get("level") as any
-              
-              await updateCandidate(editingCandidate.id, { name, level })
+              const name = formData.get("name")
+              const level = formData.get("level")
+
+              const gelombang = Number(formData.get("gelombang"))
+              if (typeof name !== "string" || typeof level !== "string" || !isLevel(level)) return
+              if (!Number.isInteger(gelombang) || gelombang < 1) return
+              await updateCandidate(editingCandidate.id, { name, level, gelombang, nim: String(formData.get("nim") ?? "").trim() || null })
               setEditingCandidate(null)
               router.refresh()
             }}
-            className="p-8 space-y-5"
+            className="space-y-4 p-6"
           >
             <div className="space-y-1.5">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap</label>
-              <input 
+              <label htmlFor="edit-name" className={labelCls}>Nama lengkap</label>
+              <input
+                id="edit-name"
                 name="name"
                 defaultValue={editingCandidate?.name}
                 required
-                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-[14px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold"
+                className={cn(controlCls, "w-full px-3")}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Jenjang</label>
-              <select 
+              <label htmlFor="edit-level" className={labelCls}>Jenjang</label>
+              <select
+                id="edit-level"
                 name="level"
                 defaultValue={editingCandidate?.level}
-                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-[14px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold"
+                className={cn(controlCls, "w-full cursor-pointer px-3")}
               >
                 <option value="SD">SD</option>
                 <option value="SMP">SMP</option>
               </select>
             </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button 
+            <div className="space-y-1.5">
+              <label htmlFor="edit-gelombang" className={labelCls}>Gelombang</label>
+              <input
+                id="edit-gelombang"
+                name="gelombang"
+                type="number"
+                min={1}
+                max={9}
+                defaultValue={editingCandidate?.gelombang}
+                required
+                className={cn(controlCls, "w-full px-3")}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="edit-nim" className={labelCls}>NIM</label>
+              <input
+                id="edit-nim"
+                name="nim"
+                inputMode="numeric"
+                autoComplete="off"
+                defaultValue={editingCandidate?.nim ?? ""}
+                placeholder="Dipakai sebagai kata sandi PDF surat hasil"
+                className={cn(controlCls, "w-full px-3")}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
                 type="button"
                 variant="outline"
                 onClick={() => setEditingCandidate(null)}
-                className="flex-1 h-12 rounded-xl border-slate-200 text-slate-500 font-bold"
+                className="h-10 px-4"
               >
                 Batal
               </Button>
-              <Button 
-                type="submit"
-                className="flex-1 h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-lg"
-              >
+              <Button type="submit" className="h-10 bg-emerald-600 px-4 text-white hover:bg-emerald-700">
                 Simpan Perubahan
               </Button>
             </div>
@@ -944,29 +866,34 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
       </Dialog>
 
       {/* QR Code Dialog */}
-      <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-        <DialogContent className="max-w-xs rounded-2xl p-8 bg-white overflow-hidden relative">
-          <DialogTitle className="text-center text-[18px] font-bold text-[#0F172A] mb-6">
-            Akses Formulir Observasi
-          </DialogTitle>
-          
-          <div className="flex flex-col items-center">
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 w-full">
-              <button 
+      <Dialog
+        open={!!selectedCandidate}
+        onOpenChange={() => setSelectedCandidate(null)}
+        className="max-w-sm shadow-xl"
+      >
+        <DialogHeader className={dialogHeaderCls}>
+          <DialogTitle className={dialogTitleCls}>Akses Formulir Observasi</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="p-0">
+          <div className="flex flex-col items-center p-6">
+            <div className="mb-5 flex w-full rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
                 onClick={() => setRole("parent")}
                 className={cn(
-                  "flex-1 py-2 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all",
-                  role === "parent" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400"
+                  "flex-1 rounded-lg py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                  role === "parent" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
               >
                 Orang Tua
               </button>
               {selectedCandidate?.level === "SMP" && (
-                <button 
+                <button
+                  type="button"
                   onClick={() => setRole("student")}
                   className={cn(
-                    "flex-1 py-2 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all",
-                    role === "student" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400"
+                    "flex-1 rounded-lg py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                    role === "student" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   )}
                 >
                   Calon Siswa
@@ -974,39 +901,36 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               )}
             </div>
 
-            <div className="bg-white p-4 rounded-3xl border-4 border-[#F1F5F9] shadow-xl mb-6 min-h-[200px] flex items-center justify-center">
+            <div className="mb-4 flex min-h-[232px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-4">
               {origin && (
-                <QRCodeSVG 
-                  value={`https://dashboard-alfakhir.vercel.app/form/${selectedCandidate?.id}${role === "student" ? "?role=student" : ""}`} 
+                <QRCodeSVG
+                  value={formLink(selectedCandidate?.id)}
                   size={200}
                   level="H"
                   includeMargin={false}
                 />
               )}
             </div>
-            
-            <div className="text-center space-y-2 mb-8">
-              <div className="text-[15px] font-bold text-[#0F172A] uppercase tracking-tight">
-                {selectedCandidate?.name}
-              </div>
-              <div className="px-3 py-1 bg-[#F1F5F9] text-[#64748B] text-[11px] font-black rounded-full inline-block uppercase tracking-widest">
-                LINK FORM {role === "student" ? "SISWA" : "ORANG TUA"}
-              </div>
+
+            <div className="mb-5 space-y-1.5 text-center">
+              <div className="text-sm font-semibold text-slate-900">{selectedCandidate?.name}</div>
+              <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                Link formulir {role === "student" ? "siswa" : "orang tua"}
+              </span>
             </div>
 
-            <Button 
-              className="w-full bg-primary hover:bg-primary-dark text-white font-bold h-12 rounded-xl shadow-lg shadow-emerald-500/20"
+            <Button
+              className="h-10 w-full bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={() => {
-                const url = `https://dashboard-alfakhir.vercel.app/form/${selectedCandidate?.id}${role === "student" ? "?role=student" : ""}`;
-                navigator.clipboard.writeText(url);
-                setSelectedCandidate(null);
-                setRole("parent"); // Reset
+                navigator.clipboard.writeText(formLink(selectedCandidate?.id))
+                setSelectedCandidate(null)
+                setRole("parent") // Reset
               }}
             >
               Salin Link {role === "student" ? "Siswa" : "Orang Tua"}
             </Button>
-            
-            <p className="mt-4 text-[11px] text-[#94A3B8] font-medium">
+
+            <p className="mt-3 text-center text-xs text-slate-500">
               Link ini digunakan oleh orang tua/siswa untuk mengisi data observasi.
             </p>
           </div>
@@ -1014,93 +938,115 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
       </Dialog>
 
       {/* Add Candidate Dialog */}
-      <Dialog open={isAddingCandidate} onOpenChange={setIsAddingCandidate}>
-        <DialogContent className="max-w-md rounded-[32px] p-0 bg-white overflow-hidden border-none shadow-2xl">
-          <DialogHeader className="px-10 pt-10 pb-6 bg-slate-50/50">
-            <DialogTitle className="text-[24px] font-black text-[#0F172A] uppercase tracking-tighter italic">
-              Tambah Siswa Baru
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form className="p-10 space-y-6" onSubmit={async (e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const name = formData.get("name") as string
-            const level = formData.get("level") as string
-            const room = formData.get("room") as string
-            const selectedInterviewer = formData.get("selectedInterviewer") as string
-            
-            if (name && level) {
-              const res = await addCandidate({ name, level, room, selectedInterviewer })
-              if (res.success) {
-                setIsAddingCandidate(false)
-                router.refresh()
-              } else {
-                alert(res.error)
+      <Dialog open={isAddingCandidate} onOpenChange={setIsAddingCandidate} className="max-w-md shadow-xl">
+        <DialogHeader className={dialogHeaderCls}>
+          <DialogTitle className={dialogTitleCls}>Tambah Siswa</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="p-0">
+          <form
+            className="space-y-4 p-6"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              const name = formData.get("name") as string
+              const level = formData.get("level") as string
+              const room = formData.get("room") as string
+              const selectedInterviewer = formData.get("selectedInterviewer") as string
+
+              if (name && level) {
+                const gelombangRaw = Number(formData.get("gelombang"))
+                const gelombang = Number.isInteger(gelombangRaw) && gelombangRaw >= 1 ? gelombangRaw : undefined
+                const nim = String(formData.get("nim") ?? "").trim() || undefined
+                const res = await addCandidate({ name, level, room, selectedInterviewer, gelombang, nim })
+                if (res.success) {
+                  setIsAddingCandidate(false)
+                  router.refresh()
+                } else {
+                  alert(res.error)
+                }
               }
-            }
-          }}>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nama Lengkap Siswa</label>
-              <input 
+            }}
+          >
+            <div className="space-y-1.5">
+              <label htmlFor="add-name" className={labelCls}>Nama lengkap siswa</label>
+              <input
+                id="add-name"
                 name="name"
                 required
-                placeholder="Contoh: Abdullah Hakim..."
-                className="w-full h-14 border-2 border-slate-100 rounded-2xl px-5 text-[15px] font-bold outline-none focus:border-primary transition-all bg-slate-50/30"
+                placeholder="Contoh: Abdullah Hakim"
+                className={cn(controlCls, "w-full px-3")}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Unit Sekolah</label>
-                <select 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label htmlFor="add-level" className={labelCls}>Unit sekolah</label>
+                <select
+                  id="add-level"
                   name="level"
                   required
-                  className="w-full h-14 border-2 border-slate-100 rounded-2xl px-4 text-[15px] font-bold outline-none focus:border-primary transition-all bg-slate-50/30 cursor-pointer"
+                  className={cn(controlCls, "w-full cursor-pointer px-3")}
                 >
                   <option value="SD">Unit SD</option>
                   <option value="SMP">Unit SMP</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Ruangan</label>
-                <select 
+              <div className="space-y-1.5">
+                <label htmlFor="add-room" className={labelCls}>Ruangan</label>
+                <select
+                  id="add-room"
                   name="room"
                   required
-                  className="w-full h-14 border-2 border-slate-100 rounded-2xl px-4 text-[15px] font-bold outline-none focus:border-primary transition-all bg-slate-50/30 cursor-pointer"
+                  className={cn(controlCls, "w-full cursor-pointer px-3")}
                 >
-                  <option value="">Pilih...</option>
+                  <option value="">Pilih ruangan...</option>
                   {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Pewawancara Terpilih</label>
-              <select 
+            <div className="space-y-1.5">
+              <label htmlFor="add-gelombang" className={labelCls}>Gelombang</label>
+              <input
+                id="add-gelombang"
+                name="gelombang"
+                type="number"
+                min={1}
+                max={9}
+                placeholder="Otomatis (gelombang terbaru)"
+                className={cn(controlCls, "w-full px-3")}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="add-nim" className={labelCls}>NIM</label>
+              <input id="add-nim" name="nim" inputMode="numeric" autoComplete="off" placeholder="Opsional, bisa diisi nanti" className={cn(controlCls, "w-full px-3")} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="add-interviewer" className={labelCls}>Pewawancara</label>
+              <select
+                id="add-interviewer"
                 name="selectedInterviewer"
                 required
-                className="w-full h-14 border-2 border-slate-100 rounded-2xl px-4 text-[15px] font-bold outline-none focus:border-primary transition-all bg-slate-50/30 cursor-pointer"
+                className={cn(controlCls, "w-full cursor-pointer px-3")}
               >
-                <option value="">Pilih Pewawancara...</option>
+                <option value="">Pilih pewawancara...</option>
                 {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
               </select>
             </div>
 
-            <div className="pt-6 flex gap-4">
-              <Button 
-                type="button" 
-                variant="outline" 
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setIsAddingCandidate(false)}
-                className="flex-1 h-14 rounded-2xl border-slate-200 font-black text-slate-400 uppercase tracking-widest text-[12px]"
+                className="h-10 px-4"
               >
                 Batal
               </Button>
-              <Button 
-                type="submit"
-                className="flex-1 h-14 rounded-2xl bg-slate-900 hover:bg-black text-white font-black uppercase tracking-widest text-[12px] shadow-xl shadow-slate-900/20 transition-all hover:-translate-y-1"
-              >
-                Simpan Data
+              <Button type="submit" className="h-10 bg-emerald-600 px-4 text-white hover:bg-emerald-700">
+                Simpan
               </Button>
             </div>
           </form>
@@ -1108,26 +1054,34 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!targetDelete} onOpenChange={() => !isDeleting && setTargetDelete(null)}>
-        <DialogContent className="max-w-md rounded-[32px] p-10 bg-white border-none shadow-2xl text-center">
-          <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-rose-500">
-            <Trash2 size={40} />
+      <Dialog
+        open={!!targetDelete}
+        onOpenChange={() => !isDeleting && setTargetDelete(null)}
+        className="max-w-md shadow-xl"
+      >
+        <DialogContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <Trash2 size={20} aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle>Hapus siswa?</DialogTitle>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                Anda akan menghapus data <span className="font-semibold text-slate-900">{targetDelete?.name}</span> secara permanen. Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
           </div>
-          <h2 className="text-[24px] font-black text-[#0F172A] uppercase tracking-tighter italic mb-3">Hapus Siswa?</h2>
-          <p className="text-slate-500 text-[15px] font-medium leading-relaxed mb-10">
-            Anda akan menghapus data <span className="font-bold text-slate-900">{targetDelete?.name}</span> secara permanen. Tindakan ini tidak dapat dibatalkan.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-12 rounded-2xl font-bold border-slate-200 text-slate-500 hover:bg-slate-50"
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              className="h-10 px-4"
               onClick={() => setTargetDelete(null)}
               disabled={isDeleting}
             >
               Batal
             </Button>
-            <Button 
-              className="h-12 rounded-2xl font-bold bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/20"
+            <Button
+              className="h-10 bg-rose-600 px-4 text-white hover:bg-rose-700"
               disabled={isDeleting}
               onClick={async () => {
                 if (!targetDelete) return
@@ -1150,26 +1104,34 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
       </Dialog>
 
       {/* Reset Confirmation Dialog */}
-      <Dialog open={!!targetReset} onOpenChange={() => !isResetting && setTargetReset(null)}>
-        <DialogContent className="max-w-md rounded-[32px] p-10 bg-white border-none shadow-2xl text-center">
-          <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-amber-500">
-            <RefreshCw size={40} />
+      <Dialog
+        open={!!targetReset}
+        onOpenChange={() => !isResetting && setTargetReset(null)}
+        className="max-w-md shadow-xl"
+      >
+        <DialogContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <RefreshCw size={20} aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle>Reset status?</DialogTitle>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                Kembalikan status <span className="font-semibold text-slate-900">{targetReset?.name}</span> ke 'Pending' agar bisa mengisi formulir kembali?
+              </p>
+            </div>
           </div>
-          <h2 className="text-[24px] font-black text-[#0F172A] uppercase tracking-tighter italic mb-3">Reset Status?</h2>
-          <p className="text-slate-500 text-[15px] font-medium leading-relaxed mb-10">
-            Kembalikan status <span className="font-bold text-slate-900">{targetReset?.name}</span> ke 'Pending' agar bisa mengisi formulir kembali?
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-12 rounded-2xl font-bold border-slate-200 text-slate-500 hover:bg-slate-50"
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              className="h-10 px-4"
               onClick={() => setTargetReset(null)}
               disabled={isResetting}
             >
               Batal
             </Button>
-            <Button 
-              className="h-12 rounded-2xl font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20"
+            <Button
+              className="h-10 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
               disabled={isResetting}
               onClick={async () => {
                 if (!targetReset) return

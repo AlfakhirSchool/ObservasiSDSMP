@@ -15,7 +15,7 @@ interface Question {
   order: number
 }
 
-export default function AcademicClient({ candidate }: { candidate: any }) {
+export default function AcademicClient({ candidate, token }: { candidate: any; token?: string }) {
   const router = useRouter()
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -43,7 +43,7 @@ export default function AcademicClient({ candidate }: { candidate: any }) {
       const res = await fetch("/api/academic/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidateId: candidate.id, answers })
+        body: JSON.stringify({ candidateId: candidate.id, answers, token })
       })
       if (res.ok) {
         router.refresh()

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { getAcademicYear } from "@/lib/utils"
+import { getCurrentGelombang } from "@/lib/data-service"
 
 export async function POST(req: Request) {
   try {
@@ -15,12 +17,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nama dan Jenjang wajib diisi" }, { status: 400 })
     }
 
+    const academicYear = getAcademicYear()
     const candidate = await prisma.candidate.create({
       data: {
         name,
         level: level as "SD" | "SMP",
         room: room || null,
         status: "PENDING",
+        academicYear,
+        gelombang: await getCurrentGelombang(academicYear),
       },
     })
 

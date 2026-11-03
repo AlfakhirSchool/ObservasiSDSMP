@@ -1,11 +1,11 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { Header } from "@/components/layout/header"
-import { GraduationCap, LayoutDashboard, Users, HelpCircle, Archive } from "lucide-react"
 import Link from "next/link"
-import { SignOutButton } from "@/components/auth/sign-out-button"
-import { cn } from "@/lib/utils"
+import { Header } from "@/components/layout/header"
 import { BrandLogo } from "@/components/layout/brand-logo"
+import { NavLink } from "@/components/layout/nav-link"
+import { MobileNav } from "@/components/layout/mobile-nav"
+import { INTERVIEWER_NAV_ITEMS, MAIN_NAV_ITEMS } from "@/components/layout/nav-items"
 
 export default async function DashboardLayout({
   children,
@@ -15,47 +15,56 @@ export default async function DashboardLayout({
   const session = await auth()
   if (!session) redirect("/login")
 
-  const role = session.user?.role as any
+  const role = session.user?.role
   if (!role || role === "unauthorized") redirect("/login?error=unauthorized")
+
+  const name = session.user?.name
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* GLOBAL PORTAL TOP NAV */}
-      <nav className="h-[75px] bg-[#0D1B2A] text-white flex items-center justify-between px-8 sticky top-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-8">
-          <Link href="/admin/admin" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <BrandLogo role={role} />
-          </Link>
+      <nav className="sticky top-0 z-50 h-16 border-b border-white/10 bg-[#0D1B2A] text-white">
+        <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3 xl:gap-5">
+            <MobileNav name={name} role={role} />
 
-          {/* Horizontal Menu */}
-          <div className="hidden lg:flex items-center gap-1 bg-white/5 p-1 rounded-2xl">
-            <Link href="/admin/admin" className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all text-[12px] font-bold uppercase tracking-tight text-slate-300 hover:text-white">
-              <LayoutDashboard size={14} /> Ringkasan
+            <Link
+              href="/admin/admin"
+              className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            >
+              <BrandLogo role={role} />
             </Link>
-            <Link href="/admin/candidates" className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all text-[12px] font-bold uppercase tracking-tight text-slate-300 hover:text-white">
-              <Users size={14} /> Siswa
-            </Link>
-            <Link href="/admin/questions" className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all text-[12px] font-bold uppercase tracking-tight text-slate-300 hover:text-white">
-              <HelpCircle size={14} /> Observasi
-            </Link>
-            <Link href="/admin/academic" className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all text-[12px] font-bold uppercase tracking-tight text-slate-300 hover:text-white">
-              <GraduationCap size={14} /> Akademik
-            </Link>
-            <div className="w-px h-4 bg-white/10 mx-2" />
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter mr-2 italic">Pewawancara:</span>
-              <Link href="/interviewer/sd" className="px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-all text-[11px] font-bold uppercase tracking-tight text-emerald-400">SD</Link>
-              <Link href="/interviewer/smp" className="px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-all text-[11px] font-bold uppercase tracking-tight text-emerald-400">SMP</Link>
+
+            {/* Horizontal Menu */}
+            <div className="hidden items-center gap-1 xl:flex">
+              {MAIN_NAV_ITEMS.map(({ href, label }) => (
+                <NavLink key={href} href={href}>
+                  {label}
+                </NavLink>
+              ))}
+
+              <div className="mx-3 h-6 w-px bg-white/10" aria-hidden="true" />
+
+              <div
+                role="group"
+                aria-label="Pewawancara"
+                className="flex items-center gap-1 rounded-xl border border-white/10 p-1"
+              >
+                <span className="sr-only">Pewawancara</span>
+                {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
+                  <NavLink key={href} href={href} className="py-1.5">
+                    <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
+                  </NavLink>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <Header session={session} isPortal />
+          <Header name={name} role={role} />
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-6 md:p-10">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {children}
       </main>
     </div>

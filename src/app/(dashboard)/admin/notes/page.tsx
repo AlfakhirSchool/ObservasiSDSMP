@@ -1,28 +1,40 @@
 import { auth } from "@/lib/auth"
-import { getAllNotes, getCandidates } from "@/lib/google-sheets"
+import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import AdminNotesClient from "./admin-notes-client"
+import type { InterviewerNote } from "@/types"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
   title: "Catatan Observasi",
 }
 
+const RECOMMENDATIONS = ["Terima", "Pertimbangkan", "Tolak"] as const
+
 export default async function AdminNotesPage() {
   const session = await auth()
   if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
 
-  const [notes, candidates] = await Promise.all([
-    getAllNotes(),
-    getCandidates(),
-  ])
+  const rows = await prisma.interviewerNote.findMany({
+    include: { candidate: { select: { name: true, aiSummary: { select: { summary: true } } } } },
+    orderBy: { createdAt: "desc" },
+  })
 
-  // Map candidate ID to name for display
-  const enrichedNotes = notes.map((note) => ({
-    ...note,
-    candidateName:
-      candidates.find((c) => c.id === note.candidateId)?.name || note.candidateId,
+  const notes: InterviewerNote[] = rows.map((n) => ({
+    noteId: n.id,
+    candidateId: n.candidateId,
+    candidateName: n.candidate.name,
+    interviewerEmail: n.interviewerEmail,
+    interviewerName: n.interviewerName,
+    observation: n.observation,
+    academicAssessment: n.academicAssessment,
+    familySupport: n.familySupport,
+    characterNotes: n.characterNotes,
+    recommendation: RECOMMENDATIONS.find((r) => r === n.recommendation) ?? "Pertimbangkan",
+    submittedAt: n.createdAt.toISOString(),
+    isLocked: n.isLocked,
+    aiSummary: n.candidate.aiSummary?.summary ?? null,
   }))
 
-  return <AdminNotesClient notes={enrichedNotes} />
+  return <AdminNotesClient notes={notes} />
 }

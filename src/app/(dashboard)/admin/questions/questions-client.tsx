@@ -9,14 +9,17 @@ import {
   Trash2,
   Edit3,
   HelpCircle,
-  Save,
-  X,
   Loader2,
-  QrCode
+  QrCode,
+  Lock,
+  RefreshCw,
+  X,
 } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { addQuestion, deleteQuestion, updateQuestion } from "@/lib/actions"
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
+import { PageHeader } from "@/components/layout/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 
 interface Question {
   id: string
@@ -33,11 +36,89 @@ interface Props {
   initialQuestions: Question[]
 }
 
+type Level = "SD" | "SMP"
+type Category = "ORANG TUA" | "SISWA"
+
+const FIELD_LABEL = "block text-sm font-medium text-slate-700"
+const FIELD_INPUT =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:bg-slate-50"
+const ICON_BUTTON =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+
+interface SegmentOption<T extends string> {
+  value: T
+  label: string
+  count: number
+  disabled?: boolean
+  disabledHint?: string
+}
+
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: SegmentOption<T>[]
+  onChange: (value: T) => void
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="inline-flex w-fit rounded-xl bg-slate-100 p-1">
+      {options.map((opt) => {
+        const active = opt.value === value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            disabled={opt.disabled}
+            title={opt.disabled ? opt.disabledHint : undefined}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50",
+              active
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            )}
+          >
+            {opt.label}
+            <span
+              className={cn(
+                "rounded-full px-1.5 text-xs tabular-nums",
+                active ? "bg-slate-100 text-slate-700" : "text-slate-500"
+              )}
+            >
+              {opt.count}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function UnitBadge({ level }: { level: Level }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold uppercase ring-1 ring-inset",
+        level === "SD"
+          ? "bg-[#E67E22]/10 text-[#B35F10] ring-[#E67E22]/30"
+          : "bg-[#0D5C63]/10 text-[#0D5C63] ring-[#0D5C63]/25"
+      )}
+    >
+      {level}
+    </span>
+  )
+}
+
 export default function AdminQuestionsClient({ initialQuestions }: Props) {
   const router = useRouter()
-  const [activeLevel, setActiveLevel] = useState<"SD" | "SMP">("SMP")
-  const [activeCategory, setActiveCategory] = useState<"ORANG TUA" | "SISWA">("ORANG TUA")
-  const [questions, setQuestions] = useState(initialQuestions)
+  const [activeLevel, setActiveLevel] = useState<Level>("SMP")
+  const [activeCategory, setActiveCategory] = useState<Category>("ORANG TUA")
   const [isAdding, setIsAdding] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
   const [showQR, setShowQR] = useState(false)
@@ -50,7 +131,13 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
     }
   }, [])
 
-  const filteredQuestions = questions.filter(q => (q.level === activeLevel || q.level === null) && q.category === activeCategory)
+  const forLevel = (level: Level) => initialQuestions.filter(q => q.level === level || q.level === null)
+  const levelQuestions = forLevel(activeLevel)
+  const filteredQuestions = levelQuestions
+    .filter(q => q.category === activeCategory)
+    .sort((a, b) => a.order - b.order)
+  const parentCount = levelQuestions.filter(q => q.category === "ORANG TUA").length
+  const studentCount = levelQuestions.filter(q => q.category === "SISWA").length
 
   const handleDelete = async (id: string) => {
     if (confirm("Hapus pertanyaan ini?")) {
@@ -59,248 +146,227 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
     }
   }
 
-  const formatText = (text: string) => {
-    if (!text) return ""
-    return text.length > 100 ? text.substring(0, 100) + "..." : text
+  const handleSync = async () => {
+    if (confirm("Sinkronkan seluruh soal SMP? Soal SMP lama (non-sistem) beserta jawaban siswa untuk soal itu akan DIHAPUS dan tidak bisa dikembalikan.")) {
+      const res = await fetch("/api/public/seed", { method: "POST" })
+      if (res.ok) {
+        alert("Berhasil sinkronisasi seluruh soal!")
+        router.refresh()
+      }
+    }
+  }
+
+  const closeForm = () => {
+    setIsAdding(false)
+    setEditingQuestion(null)
   }
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
-        <div>
-          <h2 className="text-[22px] font-bold text-slate-900 m-0 tracking-tight italic uppercase">Manajemen Soal Observasi</h2>
-          <p className="text-[13px] text-slate-400 m-0 mt-1">Konfigurasi pertanyaan berdasarkan jenjang sekolah</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline"
-            onClick={async () => {
-              if (confirm("Sinkronkan seluruh soal SD & SMP? Seluruh data soal lama akan dihapus.")) {
-                const res = await fetch("/api/public/seed")
-                if (res.ok) {
-                  alert("Berhasil sinkronisasi seluruh soal!")
-                  router.refresh()
-                }
-              }
-            }}
-            className="h-10 border-slate-200 text-slate-600 rounded-xl px-5 text-[13px] font-bold bg-white"
-          >
-            Sync Semua Soal
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => setShowQR(true)}
-            className="h-10 border-slate-200 text-slate-600 rounded-xl px-4 text-[13px] font-bold bg-white"
-          >
-            <QrCode size={18} className="mr-2" />
-            QR Soal {activeLevel}
-          </Button>
-          <Button 
-            onClick={() => setIsAdding(true)}
-            className="h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-5 text-[13px] font-bold shadow-lg shadow-slate-900/20"
-          >
-            <Plus size={18} className="mr-2" />
-            Tambah Soal Baru
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
-        {/* Main Tabs (SD/SMP) */}
-        <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl w-fit border border-slate-200">
-          <button 
-            onClick={() => {
-              setActiveLevel("SD")
-              setActiveCategory("ORANG TUA")
-            }}
-            className={cn(
-              "px-8 py-2.5 rounded-xl text-[13px] font-black uppercase tracking-tight transition-all",
-              activeLevel === "SD" 
-                ? "bg-white text-blue-600 shadow-lg border border-slate-200" 
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Unit SD
-          </button>
-          <button 
-            onClick={() => setActiveLevel("SMP")}
-            className={cn(
-              "px-8 py-2.5 rounded-xl text-[13px] font-black uppercase tracking-tight transition-all",
-              activeLevel === "SMP" 
-                ? "bg-white text-purple-600 shadow-lg border border-slate-200" 
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Unit SMP
-          </button>
-        </div>
-
-        {/* Sub Tabs (Parent/Student) */}
-        <div className="flex gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <button 
-            onClick={() => setActiveCategory("ORANG TUA")}
-            className={cn(
-              "px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-              activeCategory === "ORANG TUA" 
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" 
-                : "text-slate-400 hover:bg-slate-50"
-            )}
-          >
-            <div className={cn("w-1.5 h-1.5 rounded-full", activeCategory === "ORANG TUA" ? "bg-white" : "bg-emerald-500")} />
-            Orang Tua
-          </button>
-          {activeLevel === "SMP" && (
-            <button 
-              onClick={() => setActiveCategory("SISWA")}
-              className={cn(
-                "px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                activeCategory === "SISWA" 
-                  ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" 
-                  : "text-slate-400 hover:bg-slate-50"
-              )}
+    <div className="space-y-6">
+      <PageHeader
+        title="Soal Observasi"
+        description="Atur pertanyaan observasi untuk orang tua dan calon siswa per jenjang"
+        actions={
+          <>
+            <Button variant="outline" onClick={handleSync}>
+              <RefreshCw size={16} />
+              Sync Semua Soal
+            </Button>
+            <Button variant="outline" onClick={() => setShowQR(true)}>
+              <QrCode size={16} />
+              QR Soal {activeLevel}
+            </Button>
+            <Button
+              onClick={() => setIsAdding(true)}
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
-              <div className={cn("w-1.5 h-1.5 rounded-full", activeCategory === "SISWA" ? "bg-white" : "bg-blue-500")} />
-              Calon Siswa
-            </button>
-          )}
-        </div>
+              <Plus size={16} />
+              Tambah Soal
+            </Button>
+          </>
+        }
+      />
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented<Level>
+          label="Jenjang"
+          value={activeLevel}
+          onChange={(level) => {
+            setActiveLevel(level)
+            if (level === "SD") setActiveCategory("ORANG TUA")
+          }}
+          options={[
+            { value: "SD", label: "Unit SD", count: forLevel("SD").length },
+            { value: "SMP", label: "Unit SMP", count: forLevel("SMP").length },
+          ]}
+        />
+        <Segmented<Category>
+          label="Target responden"
+          value={activeCategory}
+          onChange={setActiveCategory}
+          options={[
+            { value: "ORANG TUA", label: "Orang Tua", count: parentCount },
+            {
+              value: "SISWA",
+              label: "Calon Siswa",
+              count: studentCount,
+              disabled: activeLevel === "SD",
+              disabledHint: "Hanya tersedia untuk Unit SMP",
+            },
+          ]}
+        />
       </div>
 
       {/* Question list */}
-      <div className="flex flex-col gap-3">
-        {filteredQuestions.length === 0 ? (
-          <div className="py-24 text-center bg-white border-2 border-dashed border-slate-100 rounded-3xl">
-            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4">
-              <HelpCircle size={32} className="text-slate-300" />
-            </div>
-            <div className="text-[15px] font-bold text-slate-600 mb-1">Belum ada pertanyaan untuk Unit {activeLevel}</div>
-            <div className="text-[13px] text-slate-400">Klik "Tambah Soal Baru" atau "Sync" untuk mengisi data</div>
-          </div>
-        ) : (
-          filteredQuestions.sort((a, b) => a.order - b.order).map((q, i) => (
-            <div 
+      {filteredQuestions.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <EmptyState
+            icon={HelpCircle}
+            title={`Belum ada pertanyaan untuk Unit ${activeLevel}`}
+            description='Klik "Tambah Soal" atau "Sync Semua Soal" untuk mengisi data.'
+            action={
+              <Button
+                onClick={() => setIsAdding(true)}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Plus size={16} />
+                Tambah Soal
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {filteredQuestions.map((q, i) => (
+            <li
               key={q.id}
-              className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-6 shadow-sm hover:shadow-xl hover:border-primary/20 transition-all duration-500 group relative overflow-hidden"
+              className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
             >
-              <div className="absolute top-0 left-0 w-1 h-full bg-slate-100 group-hover:bg-primary transition-colors" />
-              
-              {/* Number with better style */}
-              <div className="w-14 h-14 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center text-[16px] font-black shrink-0 border border-slate-100 group-hover:bg-linear-to-br group-hover:from-primary group-hover:to-primary-dark group-hover:text-white group-hover:shadow-lg group-hover:shadow-primary/30 transition-all duration-500">
-                {String(i + 1).padStart(2, '0')}
-              </div>
-              
-              {/* Question text */}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn(
-                    "text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg",
-                    q.category === "ORANG TUA" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-                  )}>
-                    {q.category === "ORANG TUA" ? "Orang Tua" : "Siswa"}
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold tabular-nums text-slate-600">
+                {i + 1}
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-relaxed text-slate-900">{q.text}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    {q.category === "ORANG TUA" ? "Orang Tua" : "Calon Siswa"}
                   </span>
-                  <div className="w-1 h-1 rounded-full bg-slate-300" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Unit {activeLevel}
-                  </span>
-                </div>
-                <div className="text-[16px] font-bold text-slate-800 leading-relaxed group-hover:text-slate-900 transition-colors">
-                  {q.text}
+                  <UnitBadge level={activeLevel} />
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex shrink-0 items-center gap-1">
                 {!q.isSystem ? (
                   <>
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => setEditingQuestion(q)}
-                      className="w-10 h-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-primary hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
-                      title="Edit Soal"
+                      className={cn(ICON_BUTTON, "hover:bg-slate-100 hover:text-slate-700")}
+                      aria-label="Edit soal"
+                      title="Edit soal"
                     >
-                      <Edit3 size={18} />
+                      <Edit3 size={16} />
                     </button>
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => handleDelete(q.id)}
-                      className="w-10 h-10 rounded-xl border border-rose-100 bg-rose-50 flex items-center justify-center text-rose-400 hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/20 transition-all duration-300"
-                      title="Hapus Soal"
+                      className={cn(ICON_BUTTON, "hover:bg-rose-50 hover:text-rose-600")}
+                      aria-label="Hapus soal"
+                      title="Hapus soal"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   </>
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sistem (Permanen)</span>
-                  </div>
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-200"
+                    title="Soal sistem tidak dapat diubah atau dihapus"
+                  >
+                    <Lock size={12} />
+                    Sistem (Permanen)
+                  </span>
                 )}
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      {/* Add/Edit Dialogs */}
+      {/* Add/Edit Dialog */}
       {(isAdding || editingQuestion) && (
-        <Dialog 
-          open={isAdding || !!editingQuestion} 
+        <Dialog
+          open={isAdding || !!editingQuestion}
           onOpenChange={(open) => {
-            if (!open) { setIsAdding(false); setEditingQuestion(null); }
+            if (!open) closeForm()
           }}
+          className="max-w-lg"
         >
-          <DialogContent className="max-w-md rounded-3xl p-0 bg-white overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="px-8 pt-8 pb-4 bg-slate-50/50">
-              <DialogTitle className="text-[18px] font-black text-slate-900 uppercase tracking-tight">
-                {isAdding ? "Tambah Soal Baru" : "Edit Pertanyaan"}
-              </DialogTitle>
-            </DialogHeader>
-            
-            <form 
+          <DialogHeader className="border-b border-slate-100 px-6 py-4">
+            <DialogTitle>{isAdding ? "Tambah Soal" : "Edit Soal"}</DialogTitle>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+              aria-label="Tutup"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+          </DialogHeader>
+
+          <DialogContent className="px-6 pb-6 pt-5">
+            <form
               onSubmit={async (e) => {
                 e.preventDefault()
                 setLoading(true)
                 const formData = new FormData(e.currentTarget)
                 const optionsRaw = formData.get("options") as string
                 const options = optionsRaw ? optionsRaw.split(",").map(o => o.trim()).filter(o => o) : []
-                
+
                 const data = {
                   text: formData.get("text") as string,
                   category: formData.get("category") as string,
                   type: formData.get("type") as string,
                   order: parseInt(formData.get("order") as string),
-                  level: activeLevel as any,
+                  level: activeLevel,
                   options: options,
                 }
-                
+
                 if (editingQuestion) {
                   await updateQuestion(editingQuestion.id, data)
                 } else {
                   await addQuestion(data)
                 }
-                
+
                 setLoading(false)
-                setIsAdding(false)
-                setEditingQuestion(null)
+                closeForm()
                 router.refresh()
               }}
-              className="p-8 space-y-5"
+              className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-sm text-slate-500">
+                Soal ini akan ditambahkan ke Unit {activeLevel}.
+              </p>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Target Responden</label>
-                  <select 
+                  <label htmlFor="question-category" className={FIELD_LABEL}>Target Responden</label>
+                  <select
+                    id="question-category"
                     name="category"
-                    defaultValue={editingQuestion?.category || "ORANG TUA"}
+                    defaultValue={editingQuestion?.category || activeCategory}
                     required
-                    className="w-full h-11 border border-slate-200 rounded-xl px-4 text-[13px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold cursor-pointer"
+                    className={cn(FIELD_INPUT, "h-10 cursor-pointer")}
                   >
                     <option value="ORANG TUA">Orang Tua</option>
                     <option value="SISWA">Calon Siswa</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tipe Jawaban</label>
-                  <select 
+                  <label htmlFor="question-type" className={FIELD_LABEL}>Tipe Jawaban</label>
+                  <select
                     name="type"
                     id="question-type"
                     defaultValue={editingQuestion?.type || "long_text"}
@@ -309,7 +375,7 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
                       const optionsDiv = document.getElementById("options-container");
                       if (optionsDiv) optionsDiv.style.display = e.target.value === "choice" ? "block" : "none";
                     }}
-                    className="w-full h-11 border border-slate-200 rounded-xl px-4 text-[13px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold cursor-pointer"
+                    className={cn(FIELD_INPUT, "h-10 cursor-pointer")}
                   >
                     <option value="text">Teks Pendek</option>
                     <option value="long_text">Paragraf Panjang</option>
@@ -320,53 +386,53 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
               </div>
 
               <div id="options-container" className="space-y-1.5" style={{ display: editingQuestion?.type === "choice" ? "block" : "none" }}>
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Pilihan Jawaban (Pisahkan dengan koma)</label>
-                <input 
+                <label htmlFor="question-options" className={FIELD_LABEL}>Pilihan Jawaban</label>
+                <input
+                  id="question-options"
                   name="options"
                   defaultValue={editingQuestion?.options?.join(", ") || ""}
                   placeholder="Contoh: Sanggup, Tidak Sanggup, Ragu-ragu"
-                  className="w-full h-11 border border-slate-200 rounded-xl px-4 text-[13px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold"
+                  className={cn(FIELD_INPUT, "h-10")}
                 />
+                <p className="text-xs text-slate-500">Pisahkan setiap pilihan dengan koma.</p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Isi Pertanyaan</label>
-                <textarea 
+                <label htmlFor="question-text" className={FIELD_LABEL}>Isi Pertanyaan</label>
+                <textarea
+                  id="question-text"
                   name="text"
                   defaultValue={editingQuestion?.text || ""}
                   required
                   rows={3}
                   placeholder="Tuliskan pertanyaan observasi..."
-                  className="w-full border border-slate-200 rounded-xl p-4 text-[14px] outline-none focus:border-primary transition-all bg-slate-50/50 font-medium leading-relaxed"
+                  className={cn(FIELD_INPUT, "resize-none py-2.5 leading-relaxed")}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Nomor Urut</label>
-                <input 
+                <label htmlFor="question-order" className={FIELD_LABEL}>Nomor Urut</label>
+                <input
+                  id="question-order"
                   name="order"
                   type="number"
                   defaultValue={editingQuestion?.order || (filteredQuestions.length + 1)}
                   required
-                  className="w-24 h-11 border border-slate-200 rounded-xl px-4 text-[14px] outline-none focus:border-primary transition-all bg-slate-50/50 font-bold"
+                  className={cn(FIELD_INPUT, "h-10 w-28 tabular-nums")}
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <Button 
-                  type="button"
-                  variant="outline"
-                  onClick={() => { setIsAdding(false); setEditingQuestion(null); }}
-                  className="flex-1 h-12 rounded-xl border-slate-200 text-slate-500 font-bold"
-                >
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button type="button" variant="outline" onClick={closeForm}>
                   Batal
                 </Button>
-                <Button 
+                <Button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 h-12 rounded-xl bg-slate-900 hover:bg-black text-white font-bold shadow-lg"
+                  className="bg-emerald-600 hover:bg-emerald-700"
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : "Simpan Soal"}
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Simpan Soal
                 </Button>
               </div>
             </form>
@@ -374,40 +440,38 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
         </Dialog>
       )}
 
-      {/* SIMPAN PERUBAHAN — fixed bottom right button */}
-      <div className="fixed bottom-10 right-10 z-50">
-        <Button 
-          onClick={() => router.refresh()}
-          className="flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-dark text-white text-[15px] font-black rounded-2xl shadow-2xl shadow-emerald-500/40 transition-all hover:scale-105 active:scale-95 h-auto uppercase tracking-wider"
-        >
-          <Save size={20} />
-          Selesai & Muat Ulang
-        </Button>
-      </div>
-
       {/* QR Dialog */}
-      <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent className="max-w-xs rounded-3xl p-8 bg-white overflow-hidden text-center">
-          <DialogTitle className="text-[18px] font-black text-slate-900 uppercase tracking-tight mb-6">
-            Akses Soal {activeLevel}
-          </DialogTitle>
-          
-          <div className="bg-white p-4 rounded-3xl border-4 border-slate-100 shadow-xl mb-6 flex items-center justify-center">
+      <Dialog open={showQR} onOpenChange={setShowQR} className="max-w-xs">
+        <DialogHeader className="border-b border-slate-100 px-6 py-4">
+          <DialogTitle>Akses Soal {activeLevel}</DialogTitle>
+          <button
+            type="button"
+            onClick={() => setShowQR(false)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            aria-label="Tutup"
+            title="Tutup"
+          >
+            <X size={18} />
+          </button>
+        </DialogHeader>
+        <DialogContent className="px-6 pb-6 pt-5 text-center">
+          <div className="mb-4 flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-4">
             {origin && (
-              <QRCodeSVG 
-                value={`https://dashboard-alfakhir.vercel.app/questions/${activeLevel.toLowerCase()}`} 
+              <QRCodeSVG
+                value={`https://dashboard-alfakhir.vercel.app/questions/${activeLevel.toLowerCase()}`}
                 size={200}
                 level="H"
               />
             )}
           </div>
-          
-          <p className="text-[12px] text-slate-400 font-medium leading-relaxed mb-6">
+
+          <p className="mb-5 text-sm leading-relaxed text-slate-500">
             Scan QR ini untuk melihat daftar pertanyaan Unit {activeLevel} di perangkat lain.
           </p>
 
-          <Button 
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl"
+          <Button
+            variant="outline"
+            className="w-full"
             onClick={() => setShowQR(false)}
           >
             Tutup

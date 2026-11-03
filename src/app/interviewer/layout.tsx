@@ -1,9 +1,9 @@
-import { BrandLogo } from "@/components/layout/brand-logo"
-import { LogOut } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { SignOutButton } from "@/components/auth/sign-out-button"
+import { BrandLogo } from "@/components/layout/brand-logo"
+import { LogoutButton } from "@/components/layout/logout-button"
+import { UserChip } from "@/components/layout/user-chip"
 
 export default async function InterviewerLayout({
   children,
@@ -16,29 +16,28 @@ export default async function InterviewerLayout({
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* Dedicated Top Nav for Interviewers */}
-      <nav className="h-[70px] bg-[#0D1B2A] text-white flex items-center justify-between px-8 sticky top-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <Link href="/interviewer" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+      <nav className="sticky top-0 z-50 h-16 border-b border-white/10 bg-[#0D1B2A] text-white">
+        <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <Link
+            href="/interviewer"
+            className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+          >
             <BrandLogo role="interviewer" />
           </Link>
-        </div>
 
-        <div className="flex items-center gap-6">
-          <div className="hidden md:flex flex-col items-end">
-            <span className="text-[13px] font-bold text-white">
-              {session.user?.name?.replace('SMPI ', '')}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-0.5">Tim Observasi</span>
+          <div className="flex items-center gap-3">
+            <UserChip
+              name={session.user?.name}
+              role={session.user?.role}
+              className="hidden sm:flex"
+            />
+            <div className="hidden h-6 w-px bg-white/10 sm:block" />
+            <LogoutButton />
           </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 flex items-center justify-center font-black text-emerald-400">
-            {session.user?.name?.charAt(0).toUpperCase()}
-          </div>
-          <div className="h-6 w-px bg-white/10" />
-          <SignOutButton />
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-6 md:p-10">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {children}
       </main>
     </div>

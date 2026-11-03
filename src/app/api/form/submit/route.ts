@@ -1,108 +1,130 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { z } from "zod"
 import { auth } from "@/lib/auth"
+import { generateCandidateSummary } from "@/lib/gemini"
+import { allow, ipFromHeaders } from "@/lib/rate-limit"
+import { recordActivity } from "@/lib/activity"
+import { verifyCandidateToken, verifyParentPhoneMatch } from "@/lib/candidate-auth"
+
+// Endpoint publik (orang tua/siswa mengisi lewat QR tanpa akun): validasi ketat, batasi laju, dan
+// verifikasi token/nomor HP untuk mencegah pengisian data siswa oleh orang lain.
+const BodySchema = z.object({
+  candidateId: z.string().min(1).max(64),
+  answers: z.record(z.string().max(64), z.string().max(5000)),
+  role: z.string().max(20).optional(),
+  parentPhone: z.string().trim().max(30).optional(),
+  correctedName: z.string().trim().max(120).optional(),
+  token: z.string().max(64).optional(),
+})
 
 export async function POST(req: Request) {
   try {
     const session = await auth()
-    const { candidateId, selectedInterviewer, answers, role, parentPhone, correctedName } = await req.json()
     const email = session?.user?.email || null
 
-    if (!candidateId || !answers) {
-      return NextResponse.json({ error: "Data tidak lengkap" }, { status: 400 })
+    const parsed = BodySchema.safeParse(await req.json())
+    if (!parsed.success) return NextResponse.json({ error: "Data tidak lengkap atau tidak valid" }, { status: 400 })
+    const { candidateId, answers, role, parentPhone, correctedName, token } = parsed.data
+
+    const [ipOk, candidateOk] = await Promise.all([
+      allow(`form-ip:${ipFromHeaders(req.headers)}`, 20, 600),
+      allow(`form-candidate:${candidateId}`, 10, 3600),
+    ])
+    if (!ipOk || !candidateOk) {
+      return NextResponse.json({ error: "Terlalu banyak pengiriman. Coba lagi nanti." }, { status: 429 })
+    }
+
+    const existing = await prisma.candidate.findUnique({
+      where: { id: candidateId },
+      select: { id: true, name: true, parentPhone: true, notes: { select: { isLocked: true } } },
+    })
+    if (!existing) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 })
+
+    // Verifikasi kepemilikan/izin akses: token URL atau kecocokan no. HP
+    const hasValidToken = verifyCandidateToken(candidateId, token)
+    const matchesPhone = verifyParentPhoneMatch(existing.parentPhone, parentPhone)
+    if (!hasValidToken && !matchesPhone) {
+      return NextResponse.json(
+        { error: "Akses tidak terverifikasi. Masukkan nomor WhatsApp/HP orang tua yang terdaftar." },
+        { status: 403 }
+      )
+    }
+
+    // Setelah observasi dikunci, jawaban formulir tidak boleh diubah lagi.
+    if (existing.notes.some((n) => n.isLocked)) {
+      return NextResponse.json({ error: "Observasi sudah selesai, jawaban tidak dapat diubah" }, { status: 409 })
     }
 
     // 1. Dapatkan semua pertanyaan yang valid untuk kategori peran ini
     const categoryToProcess = role === "student" ? "SISWA" : "ORANG TUA"
     const validQuestions = await prisma.formQuestion.findMany({
       where: { category: categoryToProcess },
-      select: { id: true }
+      select: { id: true },
     })
-    const validQuestionIds = new Set(validQuestions.map(q => q.id))
+    const validQuestionIds = validQuestions.map((q) => q.id)
+    const validQuestionSet = new Set(validQuestionIds)
 
-    // Filter jawaban agar hanya memproses yang sesuai dengan kategori perannya
+    // Hanya jawaban yang sesuai kategori perannya yang diproses
     const filteredAnswers = Object.entries(answers)
-      .filter(([questionId]) => validQuestionIds.has(questionId))
-      .map(([questionId, value]) => ({
-        candidateId,
-        questionId,
-        value: value as string,
-      }))
-
-    if (filteredAnswers.length === 0) {
-      // Jika tidak ada jawaban valid untuk kategori ini, mungkin hanya update status/metadata
-      // Tapi biasanya minimal ada satu jawaban
-    }
+      .filter(([questionId]) => validQuestionSet.has(questionId))
+      .map(([questionId, value]) => ({ candidateId, questionId, value }))
 
     await prisma.$transaction(async (tx) => {
       // Hapus hanya jawaban untuk pertanyaan yang masuk dalam kategori peran ini
-      await (tx as any).formAnswer.deleteMany({
-        where: { 
-          candidateId,
-          questionId: {
-            in: Array.from(validQuestionIds)
-          }
-        },
-      })
+      await tx.formAnswer.deleteMany({ where: { candidateId, questionId: { in: validQuestionIds } } })
 
-      // Simpan jawaban baru (hanya yang sudah difilter)
       if (filteredAnswers.length > 0) {
-        await (tx as any).formAnswer.createMany({
-          data: filteredAnswers,
-        })
+        await tx.formAnswer.createMany({ data: filteredAnswers })
       }
 
-      // 2. Update status kandidat dan simpan siapa pewawancaranya serta email pengirim
-      await (tx as any).candidate.update({
+      // 2. Update status kandidat. Pewawancara (selectedInterviewer) TIDAK diambil dari klien.
+      await tx.candidate.update({
         where: { id: candidateId },
         data: {
           status: "RESPONSE_RECEIVED",
-          selectedInterviewer: selectedInterviewer,
-          ...(role === "student" 
-            ? { studentEmail: email } 
-            : { 
-                parentEmail: email,
-                // @ts-ignore
-                parentPhone: parentPhone,
-                // @ts-ignore
-                correctedName: correctedName
-              }
-          )
+          ...(role === "student"
+            ? { studentEmail: email }
+            : { parentEmail: email, parentPhone, correctedName }),
         },
       })
     })
-    
-    // 3. Trigger AI Summary (Gemini) in background or after transaction
+
+    await recordActivity({
+      action: "FORM_ISI",
+      actorName: role === "student" ? "Siswa" : "Orang Tua",
+      actorRole: "publik",
+      targetType: "siswa",
+      targetId: candidateId,
+      targetLabel: existing.name,
+      detail: `${filteredAnswers.length} jawaban (${categoryToProcess})`,
+      ip: ipFromHeaders(req.headers),
+    })
+
+    // 3. Ringkasan AI (Gemini); kegagalan AI tidak menggagalkan penyimpanan form.
     try {
       const candidate = await prisma.candidate.findUnique({
         where: { id: candidateId },
-        include: { formAnswers: { include: { question: true } } }
+        select: { name: true, level: true, formAnswers: { select: { value: true, question: { select: { text: true } } } } },
       })
-      
+
       if (candidate) {
-        const { generateCandidateSummary } = await import("@/lib/gemini")
-        
-        const formResponse: Record<string, string> = {}
-        candidate.formAnswers.forEach((ans: any) => {
-          formResponse[ans.question.text] = ans.value
-        })
-        
+        const formResponse = Object.fromEntries(candidate.formAnswers.map((a) => [a.question.text, a.value]))
         const summary = await generateCandidateSummary(
           formResponse,
           candidate.name,
-          candidate.level as any,
+          candidate.level,
           candidate.level === "SD" ? "Orang Tua" : "Siswa"
         )
-        
+
         await prisma.aiSummary.upsert({
           where: { candidateId },
           update: { summary },
-          create: { candidateId, summary }
+          create: { candidateId, summary },
         })
       }
     } catch (aiError) {
       console.error("AI Summarization failed but form was saved:", aiError)
-      // We don't fail the whole request if AI fails
     }
 
     return NextResponse.json({ success: true })

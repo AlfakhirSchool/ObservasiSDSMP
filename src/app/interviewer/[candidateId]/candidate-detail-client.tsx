@@ -1,24 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import * as XLSX from "xlsx"
-
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { Candidate, InterviewerNote } from "@prisma/client"
-import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import type { InterviewerNote, Prisma } from "@prisma/client"
+import { cn, formatDate } from "@/lib/utils"
+import { PageHeader } from "@/components/layout/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
 import {
   ArrowLeft,
@@ -28,25 +18,91 @@ import {
   Send,
   AlertTriangle,
   AlertCircle,
+  CalendarDays,
   CheckCircle,
+  DoorOpen,
+  Download,
+  FileText,
   GraduationCap,
-  History,
+  ListChecks,
   QrCode,
-  Download
+  UserRound,
+  X,
+  XCircle,
 } from "lucide-react"
-import { formatDate } from "@/lib/utils"
+
+export type CandidateDetail = Prisma.CandidateGetPayload<{
+  include: {
+    notes: true
+    aiSummary: true
+    academicTestResult: true
+    academicResponses: { include: { question: true } }
+    formAnswers: { include: { question: true } }
+  }
+}>
 
 interface Props {
-  candidate: any
+  candidate: CandidateDetail
   existingNote: InterviewerNote | null
   savedSummary: string | null
+  /** Nama pewawancara yang sedang login; dicatat otomatis oleh server. */
+  interviewerName: string
+  /** Unduh raport hanya untuk admin. */
+  canDownload: boolean
+  candidateToken?: string
+}
+
+interface SubjectScore {
+  correct: number
+  total: number
+}
+
+type Recommendation = "Terima" | "Pertimbangkan" | "Tolak"
+
+function isRecommendation(value: string | undefined): value is Recommendation {
+  return value === "Terima" || value === "Pertimbangkan" || value === "Tolak"
+}
+
+function parseSubjectScores(raw: string): [string, SubjectScore][] {
+  try {
+    const parsed: Record<string, SubjectScore> = JSON.parse(raw)
+    return Object.entries(parsed)
+  } catch {
+    return []
+  }
 }
 
 const RECOMMENDATION_OPTIONS = [
-  { value: "Terima", label: "✅ Terima", color: "success" },
-  { value: "Pertimbangkan", label: "⚠️ Pertimbangkan", color: "warning" },
-  { value: "Tolak", label: "❌ Tolak", color: "danger" },
+  {
+    value: "Terima",
+    label: "Terima",
+    icon: CheckCircle,
+    selectedClass: "border-emerald-500 bg-emerald-50 text-emerald-700",
+  },
+  {
+    value: "Pertimbangkan",
+    label: "Pertimbangkan",
+    icon: AlertTriangle,
+    selectedClass: "border-amber-500 bg-amber-50 text-amber-700",
+  },
+  {
+    value: "Tolak",
+    label: "Tolak",
+    icon: XCircle,
+    selectedClass: "border-rose-500 bg-rose-50 text-rose-700",
+  },
 ] as const
+
+const CARD_CLASS = "rounded-2xl border border-slate-200 bg-white shadow-sm"
+const CARD_HEADER_CLASS = "border-b border-slate-100 px-5 py-4"
+const PILL_BASE = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset"
+const BTN_BASE =
+  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+const BTN_PRIMARY = cn(BTN_BASE, "bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700")
+const BTN_SECONDARY = cn(BTN_BASE, "border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50")
+const BTN_SECONDARY_SM = cn(BTN_BASE, "border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50")
+const BTN_PRIMARY_FULL = cn(BTN_PRIMARY, "w-full")
+const BTN_SECONDARY_FULL = cn(BTN_SECONDARY, "w-full")
 
 // Simple markdown-to-HTML renderer (ES2017 compatible)
 function renderMarkdown(text: string) {
@@ -68,6 +124,9 @@ export default function CandidateDetailClient({
   candidate,
   existingNote,
   savedSummary,
+  interviewerName,
+  canDownload,
+  candidateToken,
 }: Props) {
   const router = useRouter()
 
@@ -77,16 +136,15 @@ export default function CandidateDetailClient({
   const [familySupport, setFamilySupport] = useState(existingNote?.familySupport || "")
   const [characterNotes, setCharacterNotes] = useState(existingNote?.characterNotes || "")
   const [otherNotes, setOtherNotes] = useState(existingNote?.otherNotes || "")
-  const [interviewerNameInput, setInterviewerNameInput] = useState(
-    existingNote?.interviewerName || (candidate as any).selectedInterviewer || ""
-  )
-  const [recommendation, setRecommendation] = useState<"Terima" | "Pertimbangkan" | "Tolak" | "">(
-    (existingNote?.recommendation as any) || ""
-  )
+  const [recommendation, setRecommendation] = useState<Recommendation | "">(() => {
+    const saved = existingNote?.recommendation
+    return isRecommendation(saved) ? saved : ""
+  })
   const [submitting, setSubmitting] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [showAcademicDetails, setShowAcademicDetails] = useState(false)
   const [showQrDialog, setShowQrDialog] = useState(false)
+  const [qrType, setQrType] = useState<"academic" | "form_parent" | "form_student">("academic")
 
   // AI summary state
   const [summary, setSummary] = useState<string | null>(savedSummary)
@@ -97,311 +155,11 @@ export default function CandidateDetailClient({
     setOrigin(window.location.origin)
   }, [])
 
-  const [downloadingPDF, setDownloadingPDF] = useState(false)
-
-
-  const getSubjectPredicate = (score: number) => {
-    if (score >= 86) return { grade: "A", desc: "Sangat Baik" }
-    if (score >= 71) return { grade: "B", desc: "Baik" }
-    if (score >= 56) return { grade: "C", desc: "Cukup" }
-    return { grade: "D", desc: "Kurang" }
-  }
-
-  const getPasswordForCandidate = (c: any) => {
-    if (c.parentPhone) {
-      const cleaned = c.parentPhone.replace(/[^0-9]/g, "")
-      if (cleaned.length >= 6) return cleaned
-    }
-    const cleanedName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6)
-    return `${cleanedName}123`
-  }
-
-  const downloadAsExcel = () => {
-    if (!candidate.academicTestResult) {
-      toast.error("Data observasi akademik belum ada.")
-      return
-    }
-
-    const result = candidate.academicTestResult
-    const totalScore = result.totalScore
-    const { grade, desc } = getSubjectPredicate(totalScore)
-
-    // Parse per-subject scores
-    let subjects: { name: string; score: number; correct: number; total: number; grade: string; desc: string }[] = []
-    if (result.subjectScores) {
-      try {
-        const parsed = JSON.parse(result.subjectScores)
-        subjects = Object.entries(parsed).map(([name, data]: [string, any]) => {
-          const score = Math.round((data.correct / data.total) * 100)
-          const pred = getSubjectPredicate(score)
-          return { name, score, correct: data.correct, total: data.total, grade: pred.grade, desc: pred.desc }
-        })
-      } catch (e) { /* ignore */ }
-    }
-
-    // Sheet 1: Ringkasan
-    const summary = [{
-      "Nama Siswa": candidate.correctedName || candidate.name,
-      "Jenjang": candidate.level,
-      "Ruangan": candidate.room || "-",
-      "Pewawancara": candidate.selectedInterviewer || "-",
-      "Nilai Akhir": Math.round(totalScore),
-      "Predikat": grade,
-      "Keterangan": desc,
-    }]
-
-    // Sheet 2: Per mapel
-    const detail = subjects.map((s, idx) => ({
-      "No": idx + 1,
-      "Mata Pelajaran": s.name,
-      "Jumlah Soal": s.total,
-      "Jawaban Benar": s.correct,
-      "Nilai": s.score,
-      "Predikat": s.grade,
-      "Keterangan": s.desc,
-    }))
-
-    // Sheet 3: Skala nilai
-    const skala = [
-      { "Rentang Nilai": "86 – 100", "Predikat": "A", "Keterangan": "Sangat Baik" },
-      { "Rentang Nilai": "71 – 85",  "Predikat": "B", "Keterangan": "Baik" },
-      { "Rentang Nilai": "56 – 70",  "Predikat": "C", "Keterangan": "Cukup" },
-      { "Rentang Nilai": "< 56",      "Predikat": "D", "Keterangan": "Kurang" },
-    ]
-
-    const wb = XLSX.utils.book_new()
-
-    const ws1 = XLSX.utils.json_to_sheet(summary)
-    ws1["!cols"] = Object.keys(summary[0]).map(k => ({ wch: Math.max(k.length, String((summary[0] as any)[k] ?? "").length) + 4 }))
-    XLSX.utils.book_append_sheet(wb, ws1, "Ringkasan")
-
-    const ws2 = XLSX.utils.json_to_sheet(detail)
-    ws2["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, ws2, "Nilai Per Mapel")
-
-    const ws3 = XLSX.utils.json_to_sheet(skala)
-    ws3["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 18 }]
-    XLSX.utils.book_append_sheet(wb, ws3, "Skala Predikat")
-
-    const safeName = (candidate.correctedName || candidate.name)
-      .replace(/[^a-zA-Z0-9\s]/g, "").trim().replace(/\s+/g, "_")
-    XLSX.writeFile(wb, `Nilai_Observasi_${safeName}.xlsx`)
-    toast.success("Excel berhasil diunduh!")
-  }
-
-  const downloadAcademicPDF = async () => {
-    if (!candidate.academicTestResult) {
-      toast.error("Data observasi akademik belum ada.")
-      return
-    }
-    
-    setDownloadingPDF(true)
-    try {
-      const { jsPDF } = await import("jspdf")
-      const doc = new jsPDF()
-      const result = candidate.academicTestResult
-      
-      const primaryColor = [4, 120, 87] 
-      const secondaryColor = [30, 41, 59] 
-      
-      // Top border/banner
-      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.rect(0, 0, 210, 8, "F")
-      
-      // Header
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(18)
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.text("AL FAKHIR ISLAMIC SCHOOL", 20, 22)
-      
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(100, 116, 139)
-      doc.text("Jl. Raya Al Fakhir No. 1, Observasi Akademik Gelombang 2", 20, 27)
-      
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(12)
-      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2])
-      doc.text("LAPORAN HASIL OBSERVASI AKADEMIK (GELOMBANG 2)", 20, 38)
-      
-      // Draw line
-      doc.setDrawColor(226, 232, 240)
-      doc.setLineWidth(0.5)
-      doc.line(20, 42, 190, 42)
-      
-      // Student Info
-      doc.setFontSize(9)
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(100, 116, 139)
-      doc.text("DATA CALON SISWA", 20, 50)
-      
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(30, 41, 59)
-      
-      const infoY = 56
-      doc.setFont("helvetica", "bold")
-      doc.text("Nama Calon Siswa", 20, infoY)
-      doc.text("Jenjang", 20, infoY + 6)
-      doc.text("Ruangan Ujian", 20, infoY + 12)
-      
-      doc.setFont("helvetica", "normal")
-      doc.text(`:  ${candidate.correctedName || candidate.name}`, 55, infoY)
-      doc.text(`:  ${candidate.level} (SMP)`, 55, infoY + 6)
-      doc.text(`:  ${candidate.room || "-"}`, 55, infoY + 12)
-      
-      doc.setFont("helvetica", "bold")
-      doc.text("Tanggal Observasi", 115, infoY)
-      doc.text("Status", 115, infoY + 6)
-      doc.text("Pewawancara", 115, infoY + 12)
-      
-      doc.setFont("helvetica", "normal")
-      doc.text(`:  ${formatDate(result.createdAt)}`, 145, infoY)
-      doc.text(`:  SELESAI`, 145, infoY + 6)
-      doc.text(`:  ${candidate.selectedInterviewer || "Tim Observasi"}`, 145, infoY + 12)
-      
-      // Draw line
-      doc.line(20, 76, 190, 76)
-      
-      // Subject Scores Table Header
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(100, 116, 139)
-      doc.text("HASIL PER MATA PELAJARAN (SUBJECT PERFORMANCE)", 20, 84)
-      
-      const tableHeaderY = 90
-      doc.setFillColor(248, 250, 252) 
-      doc.rect(20, tableHeaderY, 170, 8, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(9)
-      doc.setTextColor(71, 85, 105)
-      
-      doc.text("MATA PELAJARAN", 25, tableHeaderY + 5.5)
-      doc.text("SOAL", 95, tableHeaderY + 5.5)
-      doc.text("BENAR", 115, tableHeaderY + 5.5)
-      doc.text("NILAI", 135, tableHeaderY + 5.5)
-      doc.text("PREDIKAT", 160, tableHeaderY + 5.5)
-      
-      // Parse subject scores
-      let bIndo = { correct: 0, total: 5 }
-      let mat = { correct: 0, total: 5 }
-      let bIng = { correct: 0, total: 5 }
-      let agama = { correct: 0, total: 5 }
-      let ipa = { correct: 0, total: 5 }
-      
-      if (result.subjectScores) {
-        try {
-          const parsed = JSON.parse(result.subjectScores)
-          if (parsed["Bahasa Indonesia"]) bIndo = parsed["Bahasa Indonesia"]
-          if (parsed["Matematika"]) mat = parsed["Matematika"]
-          if (parsed["Bahasa Inggris"]) bIng = parsed["Bahasa Inggris"]
-          if (parsed["Agama Islam"]) agama = parsed["Agama Islam"]
-          if (parsed["IPA"]) ipa = parsed["IPA"]
-        } catch (e) {
-          console.error(e)
-        }
-      }
-      
-      const subjects = [
-        { name: "Bahasa Indonesia", ...bIndo },
-        { name: "Matematika", ...mat },
-        { name: "Bahasa Inggris", ...bIng },
-        { name: "Agama Islam", ...agama },
-        { name: "IPA", ...ipa }
-      ]
-      
-      let currentY = tableHeaderY + 8
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(30, 41, 59)
-      
-      subjects.forEach((subj, idx) => {
-        if (idx % 2 === 1) {
-          doc.setFillColor(254, 254, 254)
-        } else {
-          doc.setFillColor(241, 245, 249)
-        }
-        doc.rect(20, currentY, 170, 8, "F")
-        
-        const score = (subj.correct / subj.total) * 100
-        const pred = getSubjectPredicate(score)
-        
-        doc.text(subj.name, 25, currentY + 5.5)
-        doc.text(subj.total.toString(), 95, currentY + 5.5)
-        doc.text(subj.correct.toString(), 115, currentY + 5.5)
-        doc.setFont("helvetica", "bold")
-        doc.text(score.toFixed(0), 135, currentY + 5.5)
-        doc.text(`${pred.grade} (${pred.desc})`, 160, currentY + 5.5)
-        doc.setFont("helvetica", "normal")
-        
-        currentY += 8
-      })
-      
-      // Total Summary Row
-      doc.setFillColor(236, 253, 245) 
-      doc.rect(20, currentY, 170, 10, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(4, 120, 87)
-      
-      doc.text("TOTAL SKOR AKHIR", 25, currentY + 6.5)
-      doc.setFontSize(12)
-      doc.text(result.totalScore.toFixed(0), 135, currentY + 7)
-      
-      const overallPred = getSubjectPredicate(result.totalScore)
-      doc.setFontSize(9)
-      doc.text(`${overallPred.grade} - ${overallPred.desc}`, 160, currentY + 6.5)
-      
-      // Footer / Signatures
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(71, 85, 105)
-      
-      const footerY = currentY + 30
-      doc.text("Tangerang Selatan, " + new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }), 135, footerY)
-      doc.text("Pewawancara / Assessor,", 135, footerY + 6)
-      
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(30, 41, 59)
-      doc.text(candidate.selectedInterviewer || "Tim Observasi Al Fakhir", 135, footerY + 28)
-      
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(148, 163, 184)
-      doc.setFontSize(7)
-      doc.text("* Dokumen ini dihasilkan secara otomatis oleh Sistem Observasi Al Fakhir.", 20, 275)
-      doc.text("Halaman 1 dari 1", 175, 275)
-      
-      // Force download with proper filename (octet-stream bypasses Chrome PDF viewer)
-      const safeName = (candidate.correctedName || candidate.name)
-        .replace(/[^a-zA-Z0-9\s]/g, "")
-        .trim()
-        .replace(/\s+/g, "_")
-      const fileName = `Hasil_Observasi_Akademik_${safeName}.pdf`
-
-      const pdfArrayBuffer = doc.output("arraybuffer")
-      const downloadBlob = new Blob([pdfArrayBuffer], { type: "application/octet-stream" })
-      const url = URL.createObjectURL(downloadBlob)
-      const link = document.createElement("a")
-      link.style.display = "none"
-      link.href = url
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      setTimeout(() => {
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      }, 1500)
-
-      toast.success("PDF berhasil diunduh!", { duration: 4000 })
-
-
-    } catch (err) {
-      console.error(err)
-      toast.error("Gagal mengunduh PDF.")
-    } finally {
-      setDownloadingPDF(false)
-    }
-  }
 
   const isLocked = existingNote?.isLocked ?? false
 
   const handleGenerateSummary = async () => {
-    const answers = (candidate as any).formAnswers || []
+    const answers = candidate.formAnswers
     if (answers.length === 0) {
       toast.error("Tidak ada data formulir untuk diringkas")
       return
@@ -413,9 +171,9 @@ export default function CandidateDetailClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           candidateId: candidate.id,
-          formResponse: answers.reduce((acc: any, curr: any) => {
+          formResponse: answers.reduce<Record<string, string>>((acc, curr) => {
             if (curr.question) {
-              acc[curr.question.text] = curr.value || curr.answer
+              acc[curr.question.text] = curr.value
             }
             return acc
           }, {}),
@@ -430,8 +188,8 @@ export default function CandidateDetailClient({
       const data = await res.json()
       setSummary(data.summary)
       toast.success("Ringkasan AI berhasil dibuat!")
-    } catch (err: any) {
-      toast.error(err.message || "Gagal menghasilkan ringkasan AI")
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghasilkan ringkasan AI")
     } finally {
       setGeneratingSummary(false)
     }
@@ -449,7 +207,6 @@ export default function CandidateDetailClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           candidateId: candidate.id,
-          interviewerName: interviewerNameInput,
           observation,
           academicAssessment,
           familySupport,
@@ -472,493 +229,696 @@ export default function CandidateDetailClient({
     }
   }
 
-  const formEntries = (candidate as any).formAnswers || []
-  const academicResponses = (candidate as any).academicResponses || []
+  const formEntries = [...candidate.formAnswers].sort((a, b) => a.question.order - b.question.order)
+  const parentAnswers = formEntries.filter((e) => e.question.category?.trim().toUpperCase() === "ORANG TUA")
+  const studentAnswers = formEntries.filter((e) => e.question.category?.trim().toUpperCase() === "SISWA")
+  const academicResponses = [...candidate.academicResponses].sort((a, b) => a.question.order - b.question.order)
+  const academicResult = candidate.academicTestResult
+  const subjectEntries = academicResult ? parseSubjectScores(academicResult.subjectScores) : []
+  const showAcademic = candidate.level === "SMP"
+  const unitColor = candidate.level === "SMP" ? "#0D5C63" : "#E67E22"
+
+  const missingFields = [
+    !observation && "observasi umum",
+    !academicAssessment && "kesiapan akademik",
+    !familySupport && "dukungan keluarga",
+    !characterNotes && "karakter & sikap",
+    !recommendation && "rekomendasi",
+  ].filter((v): v is string => Boolean(v))
+  const canSubmit = missingFields.length === 0
+
+  const lockedFields = [
+    { label: "Observasi umum", value: existingNote?.observation },
+    { label: "Kesiapan akademik", value: existingNote?.academicAssessment },
+    { label: "Dukungan keluarga", value: existingNote?.familySupport },
+    { label: "Karakter & sikap", value: existingNote?.characterNotes },
+    ...(existingNote?.otherNotes ? [{ label: "Catatan tambahan", value: existingNote.otherNotes }] : []),
+  ]
+
+  const lockedRecommendationTone =
+    existingNote?.recommendation === "Terima"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+      : existingNote?.recommendation === "Tolak"
+        ? "bg-rose-50 text-rose-700 ring-rose-200"
+        : "bg-amber-50 text-amber-700 ring-amber-200"
+
+  const renderAnswerList = (entries: typeof formEntries, emptyTitle: string) =>
+    entries.length > 0 ? (
+      <dl className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+        {entries.map((entry) => (
+          <div key={entry.id} className="grid gap-1 px-4 py-3 sm:grid-cols-5 sm:gap-4">
+            <dt className="text-sm text-slate-500 sm:col-span-2">{entry.question.text}</dt>
+            <dd className="whitespace-pre-wrap text-sm font-medium text-slate-900 sm:col-span-3">{entry.value || "-"}</dd>
+          </div>
+        ))}
+      </dl>
+    ) : (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50">
+        <EmptyState icon={FileText} title={emptyTitle} className="py-8" />
+      </div>
+    )
+
+  const studentInfo = [
+    { label: "Nama siswa", value: candidate.name },
+    ...(candidate.correctedName && candidate.correctedName !== candidate.name
+      ? [{ label: "Nama koreksi", value: candidate.correctedName }]
+      : []),
+    { label: "Jenjang", value: candidate.level },
+    { label: "Ruangan", value: candidate.room || "-" },
+    { label: "Tahun ajaran", value: candidate.academicYear || "-" },
+    { label: "Pewawancara", value: candidate.selectedInterviewer || "Belum ditunjuk" },
+    { label: "Tanggal daftar", value: formatDate(candidate.createdAt) },
+    { label: "Formulir", value: candidate.status === "PENDING" ? "Belum diisi" : "Sudah diisi" },
+  ]
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      {/* HEADER SECTION */}
-      <div className="flex items-start gap-4 border-b border-slate-100 pb-6">
-        <button
-          onClick={() => router.back()}
-          className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm shrink-0 mt-1"
-        >
-          <ArrowLeft className="h-4 w-4 text-slate-500" />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{candidate.name}</h1>
-            <Badge variant={candidate.level === "SD" ? "info" : "purple"}>
-              LEVEL {candidate.level}
-            </Badge>
-            {isLocked && (
-              <Badge variant="success" className="gap-1.5 uppercase font-bold text-[10px]">
-                <Lock className="h-3 w-3" />
-                DATA TERKUNCI
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-slate-500 mt-1 font-medium">
-            Pendaftaran: <span className="text-slate-900 font-bold">{formatDate(candidate.createdAt)}</span>
-            {" · "}Pewawancara: <span className="text-slate-900 font-bold">{candidate.selectedInterviewer || "TBA"}</span>
-          </p>
+    <div className="space-y-6">
+      {/* HEADER */}
+      <div className="space-y-3">
+        <PageHeader
+          badge={
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Kembali ke daftar
+            </button>
+          }
+          title={candidate.name}
+          actions={
+            isLocked ? (
+              <span className={cn(PILL_BASE, "gap-1.5 bg-emerald-50 text-emerald-700 ring-emerald-200")}>
+                <Lock size={12} aria-hidden="true" />
+                Data terkunci
+              </span>
+            ) : undefined
+          }
+        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+          <span
+            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+            style={{ backgroundColor: unitColor }}
+          >
+            {candidate.level}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <DoorOpen size={14} className="text-slate-400" aria-hidden="true" />
+            Ruangan <span className="font-medium text-slate-900">{candidate.room || "-"}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <UserRound size={14} className="text-slate-400" aria-hidden="true" />
+            Pewawancara{" "}
+            <span className="font-medium text-slate-900">{candidate.selectedInterviewer || "Belum ditunjuk"}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays size={14} className="text-slate-400" aria-hidden="true" />
+            <span className="font-medium text-slate-900">{formatDate(candidate.createdAt)}</span>
+          </span>
         </div>
       </div>
 
-      {/* MAIN CONTENT GRID (2 COLUMNS: LEFT 3/5, RIGHT 2/5) */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        
-        {/* LEFT COLUMN: NOTES & FORM ANSWERS */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* INTERVIEW NOTES */}
-          <Card className="shadow-sm border-slate-200 overflow-hidden">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-              <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                {isLocked ? <Lock className="h-4 w-4 text-emerald-500" /> : <History className="h-4 w-4 text-blue-500" />}
-                {isLocked ? "Catatan Observasi (Terkunci)" : "Isi Hasil Wawancara & Observasi"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* LEFT COLUMN */}
+        <div className="space-y-6 lg:col-span-3">
+          {/* DATA SISWA */}
+          <section className={CARD_CLASS}>
+            <div className={CARD_HEADER_CLASS}>
+              <h2 className="text-base font-semibold text-slate-900">Data siswa</h2>
+            </div>
+            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+              {studentInfo.map((item) => (
+                <div key={item.label}>
+                  <dt className="text-sm text-slate-500">{item.label}</dt>
+                  <dd className="mt-0.5 text-sm font-medium text-slate-900">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          {/* JAWABAN FORMULIR */}
+          <section className={CARD_CLASS}>
+            <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Jawaban formulir</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Jawaban dari orang tua{showAcademic ? " dan calon siswa" : ""}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setQrType("form_parent")
+                  setShowQrDialog(true)
+                }}
+                className={BTN_SECONDARY_SM}
+              >
+                <QrCode size={14} aria-hidden="true" />
+                QR Formulir
+              </button>
+            </div>
+            <div className="space-y-6 p-5">
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span className="h-4 w-1 rounded-full bg-emerald-500" aria-hidden="true" />
+                  Observasi orang tua
+                </h3>
+                {renderAnswerList(parentAnswers, "Menunggu jawaban formulir dari orang tua")}
+              </div>
+              {candidate.level !== "SD" && (
+                <div className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <span className="h-4 w-1 rounded-full bg-blue-500" aria-hidden="true" />
+                    Wawancara calon siswa
+                  </h3>
+                  {renderAnswerList(studentAnswers, "Menunggu jawaban formulir dari calon siswa")}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* CATATAN OBSERVASI */}
+          <section className={CARD_CLASS}>
+            <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Catatan observasi</h2>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  {isLocked ? "Catatan sudah dikirim dan tidak dapat diubah" : "Isi hasil wawancara dan observasi"}
+                </p>
+              </div>
+              {isLocked && <Lock size={18} className="shrink-0 text-emerald-600" aria-hidden="true" />}
+            </div>
+            <div className="p-5">
               {isLocked ? (
-                <div className="space-y-6">
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div className="space-y-5">
+                  <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <CheckCircle size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
                     <div>
-                      <p className="text-sm font-bold text-emerald-800 uppercase">Sudah Terkunci</p>
-                      <p className="text-xs text-emerald-600 font-medium italic">Dikirim pada {formatDate(existingNote?.createdAt)}</p>
+                      <p className="text-sm font-semibold text-emerald-800">Catatan sudah dikunci</p>
+                      <p className="text-sm text-emerald-700">Dikirim pada {formatDate(existingNote?.createdAt)}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { label: "1. Observasi Umum", value: existingNote?.observation },
-                      { label: "2. Kesiapan Akademik", value: existingNote?.academicAssessment },
-                      { label: "3. Dukungan Keluarga", value: existingNote?.familySupport },
-                      { label: "4. Karakter & Sikap", value: existingNote?.characterNotes },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="space-y-1.5">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{label}</p>
-                        <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[100px]">
-                          {value}
-                        </div>
+                  <dl className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {lockedFields.map(({ label, value }) => (
+                      <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-5 sm:gap-4">
+                        <dt className="text-sm text-slate-500 sm:col-span-2">{label}</dt>
+                        <dd className="whitespace-pre-wrap text-sm text-slate-900 sm:col-span-3">{value || "-"}</dd>
                       </div>
                     ))}
-                    {existingNote?.otherNotes && (
-                      <div className="space-y-1.5 md:col-span-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">5. Catatan Tambahan</p>
-                        <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[100px]">
-                          {existingNote.otherNotes}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                  </dl>
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Rekomendasi</p>
-                      <Badge variant={existingNote?.recommendation === "Terima" ? "success" : existingNote?.recommendation === "Tolak" ? "danger" : "warning"} className="text-sm px-6 py-1.5 rounded-xl font-bold uppercase italic">
+                      <p className="text-sm text-slate-500">Rekomendasi</p>
+                      <span className={cn(PILL_BASE, "mt-1 px-3 py-1 text-sm", lockedRecommendationTone)}>
                         {existingNote?.recommendation}
-                      </Badge>
+                      </span>
                     </div>
-                    <div className="text-right">
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pewawancara</p>
-                       <p className="text-sm font-bold text-slate-900 italic">{existingNote?.interviewerName}</p>
+                    <div className="sm:text-right">
+                      <p className="text-sm text-slate-500">Pewawancara</p>
+                      <p className="mt-1 text-sm font-medium text-slate-900">{existingNote?.interviewerName}</p>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-5">
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Nama Pewawancara</label>
-                    <input 
-                      type="text"
-                      placeholder="Masukkan nama lengkap Anda..."
-                      value={interviewerNameInput}
-                      onChange={(e) => setInterviewerNameInput(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <Textarea label="1. Observasi Umum" placeholder="..." value={observation} onChange={(e) => setObservation(e.target.value)} className="min-h-[120px]" />
-                    <Textarea label="2. Kesiapan Akademik" placeholder="..." value={academicAssessment} onChange={(e) => setAcademicAssessment(e.target.value)} className="min-h-[120px]" />
-                    <Textarea label="3. Dukungan Keluarga" placeholder="..." value={familySupport} onChange={(e) => setFamilySupport(e.target.value)} className="min-h-[120px]" />
-                    <Textarea label="4. Karakter & Sikap" placeholder="..." value={characterNotes} onChange={(e) => setCharacterNotes(e.target.value)} className="min-h-[120px]" />
-                    <div className="md:col-span-2">
-                      <Textarea label="5. Catatan Tambahan (Opsional)" placeholder="..." value={otherNotes} onChange={(e) => setOtherNotes(e.target.value)} className="min-h-[80px]" />
+                  <p className="text-sm text-slate-500">
+                    Catatan akan dikirim atas nama{" "}
+                    <span className="font-semibold text-slate-900">{interviewerName}</span>
+                  </p>
+                  <Textarea
+                    id="note-observation"
+                    label="1. Observasi umum *"
+                    placeholder="Kesan umum selama wawancara dan observasi"
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    className="min-h-[110px]"
+                  />
+                  <Textarea
+                    id="note-academic"
+                    label="2. Kesiapan akademik *"
+                    placeholder="Kemampuan dan kesiapan belajar siswa"
+                    value={academicAssessment}
+                    onChange={(e) => setAcademicAssessment(e.target.value)}
+                    className="min-h-[110px]"
+                  />
+                  <Textarea
+                    id="note-family"
+                    label="3. Dukungan keluarga *"
+                    placeholder="Keterlibatan dan dukungan orang tua"
+                    value={familySupport}
+                    onChange={(e) => setFamilySupport(e.target.value)}
+                    className="min-h-[110px]"
+                  />
+                  <Textarea
+                    id="note-character"
+                    label="4. Karakter & sikap *"
+                    placeholder="Sikap, adab, dan karakter siswa"
+                    value={characterNotes}
+                    onChange={(e) => setCharacterNotes(e.target.value)}
+                    className="min-h-[110px]"
+                  />
+                  <Textarea
+                    id="note-other"
+                    label="5. Catatan tambahan (opsional)"
+                    placeholder="Hal lain yang perlu dicatat"
+                    value={otherNotes}
+                    onChange={(e) => setOtherNotes(e.target.value)}
+                    className="min-h-[80px]"
+                  />
+
+                  <fieldset className="space-y-2 border-t border-slate-100 pt-5">
+                    <legend className="text-sm font-medium text-slate-700">Kesimpulan & rekomendasi *</legend>
+                    <div role="radiogroup" aria-label="Rekomendasi" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {RECOMMENDATION_OPTIONS.map((opt) => {
+                        const selected = recommendation === opt.value
+                        const Icon = opt.icon
+                        return (
+                          <label
+                            key={opt.value}
+                            className={cn(
+                              "flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors focus-within:ring-2 focus-within:ring-emerald-500/40",
+                              selected ? opt.selectedClass : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="recommendation"
+                              value={opt.value}
+                              checked={selected}
+                              onChange={() => setRecommendation(opt.value)}
+                              className="sr-only"
+                            />
+                            <Icon size={16} aria-hidden="true" />
+                            {opt.label}
+                          </label>
+                        )
+                      })}
                     </div>
-                  </div>
-                  
-                  <div className="pt-6 border-t border-slate-100">
-                    <p className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4">Kesimpulan & Rekomendasi</p>
-                    <div className="flex flex-wrap gap-3 mb-6">
-                      {RECOMMENDATION_OPTIONS.map((opt) => (
-                        <label key={opt.value} className={cn(
-                          "flex-1 min-w-[140px] flex items-center justify-center gap-2 p-4 rounded-2xl border-2 cursor-pointer transition-all",
-                          recommendation === opt.value 
-                            ? (opt.value === "Terima" ? "border-emerald-500 bg-emerald-50 shadow-sm" : opt.value === "Tolak" ? "border-rose-500 bg-rose-50 shadow-sm" : "border-amber-500 bg-amber-50 shadow-sm") 
-                            : "border-slate-100 bg-white hover:border-slate-200"
-                        )}>
-                          <input type="radio" name="recommendation" value={opt.value} checked={recommendation === opt.value} onChange={() => setRecommendation(opt.value)} className="sr-only" />
-                          <span className={cn(
-                            "text-sm font-bold uppercase",
-                            recommendation === opt.value ? (opt.value === "Terima" ? "text-emerald-700" : opt.value === "Tolak" ? "text-rose-700" : "text-amber-700") : "text-slate-400"
-                          )}>{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    
-                    <Button 
-                      onClick={() => setShowConfirm(true)} 
-                      className="w-full h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-base shadow-lg transition-all" 
-                      disabled={!interviewerNameInput || !observation || !academicAssessment || !familySupport || !characterNotes || !recommendation}
-                    >
-                      <Send className="h-4 w-4 mr-2" /> Simpan & Kunci Hasil Observasi
-                    </Button>
-                  </div>
+                  </fieldset>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* FORM RESPONSES */}
-          <Card className="shadow-sm border-slate-200 overflow-hidden">
-            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-              <CardTitle className="text-lg font-bold text-slate-900">Jawaban Formulir Orang Tua & Siswa</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-10">
-                {/* Parent Section */}
-                <div className="space-y-4">
-                  <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1.5 h-4 bg-emerald-500 rounded-full" /> Observasi Orang Tua
-                  </h4>
-                  <div className="grid gap-3">
-                    {formEntries.filter((e: any) => e.question.category?.trim().toUpperCase() === "ORANG TUA").length > 0 ? (
-                      formEntries.filter((e: any) => e.question.category?.trim().toUpperCase() === "ORANG TUA").map((entry: any) => (
-                        <div key={entry.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-emerald-200 transition-all">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{entry.question.text}</p>
-                          <p className="text-sm text-slate-700 font-bold leading-relaxed">{entry.answer || entry.value || "-"}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="py-8 px-6 rounded-2xl border-2 border-dashed border-slate-100 bg-slate-50/50 text-center">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest italic">Menunggu jawaban formulir dari orang tua...</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Student Section */}
-                {candidate.level !== "SD" && (
-                  <div className="space-y-4 pt-8 border-t border-slate-100">
-                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                      <div className="w-1.5 h-4 bg-blue-500 rounded-full" /> Wawancara Calon Siswa
-                    </h4>
-                    <div className="grid gap-3">
-                      {formEntries.filter((e: any) => e.question.category?.trim().toUpperCase() === "SISWA").length > 0 ? (
-                        formEntries.filter((e: any) => e.question.category?.trim().toUpperCase() === "SISWA").map((entry: any) => (
-                          <div key={entry.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-blue-200 transition-all">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{entry.question.text}</p>
-                            <p className="text-sm text-slate-700 font-bold leading-relaxed">{entry.answer || entry.value || "-"}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="py-8 px-6 rounded-2xl border-2 border-dashed border-slate-100 bg-slate-50/50 text-center">
-                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest italic">Menunggu jawaban formulir dari calon siswa...</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
 
-        {/* RIGHT COLUMN: SIDEBAR (AI & ACADEMIC) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* AI SUMMARY CARD */}
-          <Card className="shadow-sm border-purple-100 bg-linear-to-br from-purple-50/30 to-white overflow-hidden">
-            <CardHeader className="pb-3 border-b border-purple-100/50">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-200">
-                  <Sparkles className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 uppercase tracking-tight">Analisis Profil (AI)</h3>
-                  <p className="text-[9px] font-bold text-purple-500 uppercase tracking-widest leading-none">Powered by Gemini</p>
-                </div>
+        {/* RIGHT COLUMN */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* RINGKASAN AI */}
+          <section className={CARD_CLASS}>
+            <div className={cn(CARD_HEADER_CLASS, "flex items-center gap-3")}>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <Sparkles size={18} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-slate-900">Ringkasan AI</h2>
+                <p className="text-sm text-slate-500">Dibuat otomatis dari jawaban formulir</p>
               </div>
-            </CardHeader>
-            <CardContent className="p-5">
-              {!summary && !generatingSummary ? (
-                <div className="text-center py-6 space-y-4">
-                  <p className="text-xs text-slate-400 font-bold italic">Belum ada analisis profil.</p>
-                  <Button 
-                    onClick={handleGenerateSummary} 
-                    disabled={generatingSummary}
-                    size="sm" 
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md"
-                  >
-                    {generatingSummary ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
-                    Generate Analisis
-                  </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              {generatingSummary ? (
+                <div aria-live="polite" aria-busy="true">
+                  <p className="mb-3 text-sm text-slate-500">Membuat ringkasan, mohon tunggu...</p>
+                  <SkeletonSummary />
                 </div>
+              ) : summary ? (
+                <div
+                  className="space-y-2 text-sm leading-relaxed text-slate-700 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-900 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_strong]:text-slate-900"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(summary) }}
+                />
               ) : (
-                <div className="space-y-4">
-                  {generatingSummary ? (
-                    <SkeletonSummary />
-                  ) : (
-                    <>
-                      <div className="prose prose-sm prose-slate max-w-none prose-p:leading-relaxed prose-strong:text-purple-700 text-[13px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(summary!) }} />
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleGenerateSummary} 
-                        disabled={generatingSummary}
-                        className="w-full h-9 border-purple-100 text-purple-600 hover:bg-purple-50 font-bold rounded-xl uppercase tracking-widest text-[9px]"
-                      >
-                        {generatingSummary ? <RefreshCw className="h-3 w-3 mr-2 animate-spin" /> : null}
-                        Generate Ulang
-                      </Button>
-                    </>
-                  )}
-                </div>
+                <EmptyState
+                  icon={Sparkles}
+                  title="Belum ada ringkasan"
+                  description="Buat ringkasan AI untuk membantu membaca profil siswa dengan cepat."
+                  className="py-6"
+                />
               )}
-            </CardContent>
-          </Card>
+              <button
+                type="button"
+                onClick={handleGenerateSummary}
+                disabled={generatingSummary}
+                className={summary ? BTN_SECONDARY_FULL : BTN_PRIMARY_FULL}
+              >
+                {generatingSummary ? (
+                  <RefreshCw size={16} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles size={16} aria-hidden="true" />
+                )}
+                {generatingSummary ? "Membuat ringkasan..." : summary ? "Buat ulang ringkasan" : "Buat ringkasan AI"}
+              </button>
+            </div>
+          </section>
 
-          {/* ACADEMIC PERFORMANCE CARD */}
-          {candidate.level === "SMP" && (
-            <Card className="shadow-sm border-emerald-100 bg-linear-to-br from-emerald-50/30 to-white overflow-hidden">
-              <CardHeader className="pb-3 border-b border-emerald-100/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-200">
-                      <GraduationCap className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 uppercase tracking-tight">Observasi Akademik</h3>
-                      <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">1 Soal = 4 Poin</p>
-                    </div>
+          {/* OBSERVASI AKADEMIK */}
+          {showAcademic && (
+            <section className={CARD_CLASS}>
+              <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <GraduationCap size={18} aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-slate-900">Observasi akademik</h2>
+                    <p className="text-sm text-slate-500">1 soal = 4 poin</p>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setShowQrDialog(true)}
-                    className="h-8 border-emerald-200 text-emerald-600 hover:bg-emerald-50 gap-2 font-bold text-[10px] uppercase tracking-wider"
-                  >
-                    <QrCode className="h-3 w-3" /> Akses Tes
-                  </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="p-5">
-                {candidate.academicTestResult ? (
-                  <div className="space-y-6" onClick={() => setShowAcademicDetails(true)}>
-                    <div className="text-center py-4 bg-white rounded-2xl border border-emerald-50 shadow-sm cursor-pointer hover:border-emerald-200 transition-all">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Skor Akhir</p>
-                      <div className="text-5xl font-black text-slate-900 italic leading-none">{candidate.academicTestResult.totalScore.toFixed(0)}</div>
-                      <div className="h-2 w-32 bg-slate-100 rounded-full mx-auto mt-4 overflow-hidden border border-slate-50">
-                        <div className="h-full bg-emerald-500" style={{ width: `${candidate.academicTestResult.totalScore}%` }} />
+                <button type="button" onClick={() => setShowQrDialog(true)} className={BTN_SECONDARY_SM}>
+                  <QrCode size={14} aria-hidden="true" />
+                  Akses tes
+                </button>
+              </div>
+              <div className="p-5">
+                {academicResult ? (
+                  <div className="space-y-5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+                      <p className="text-sm text-slate-500">Skor akhir</p>
+                      <p className="mt-1 text-4xl font-bold leading-none text-slate-900 tabular-nums">
+                        {academicResult.totalScore.toFixed(0)}
+                      </p>
+                      <div className="mx-auto mt-4 h-2 w-full max-w-48 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, academicResult.totalScore)}%` }} />
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-1 border-b border-slate-100 pb-1">Performa Subjek</p>
-                      {(() => {
-                        const stats = JSON.parse(candidate.academicTestResult.subjectScores)
-                        return Object.entries(stats).map(([subject, data]: [string, any]) => {
+                      <h3 className="text-sm font-semibold text-slate-900">Performa per mata pelajaran</h3>
+                      {subjectEntries.length === 0 ? (
+                        <p className="text-sm text-slate-500">Rincian nilai per mata pelajaran tidak tersedia.</p>
+                      ) : (
+                        subjectEntries.map(([subject, data]) => {
                           const percentage = (data.correct / data.total) * 100
                           return (
                             <div key={subject} className="space-y-1">
-                              <div className="flex justify-between items-end px-0.5">
-                                <span className="text-[11px] font-bold text-slate-600">{subject}</span>
-                                <span className="text-[10px] font-black text-emerald-600 italic">
-                                  Nilai: {percentage.toFixed(0)} ({data.correct}/{data.total})
+                              <div className="flex items-baseline justify-between gap-2 text-sm">
+                                <span className="text-slate-700">{subject}</span>
+                                <span className="font-medium text-slate-900 tabular-nums">
+                                  {percentage.toFixed(0)}{" "}
+                                  <span className="font-normal text-slate-500">
+                                    ({data.correct}/{data.total})
+                                  </span>
                                 </span>
                               </div>
-                              <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
+                              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                                 <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
                               </div>
                             </div>
                           )
                         })
-                      })()}
+                      )}
                     </div>
-                    
-                    <div className="flex gap-2 mt-4">
-                      <Button 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          downloadAcademicPDF()
-                        }}
-                        disabled={downloadingPDF}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 rounded-xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
-                      >
-                        {downloadingPDF ? (
-                          <RefreshCw size={14} className="animate-spin" />
-                        ) : (
-                          <Download size={14} />
-                        )}
-                        Unduh PDF
-                      </Button>
-                      <Button 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          downloadAsExcel()
-                        }}
-                        className="flex-1 bg-white border-2 border-emerald-200 hover:bg-emerald-50 text-emerald-700 font-bold h-10 rounded-xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
-                      >
-                        <Download size={14} />
-                        Unduh Excel
-                      </Button>
+
+                    <button type="button" onClick={() => setShowAcademicDetails(true)} className={BTN_SECONDARY_FULL}>
+                      <ListChecks size={16} aria-hidden="true" />
+                      Lihat detail jawaban
+                    </button>
+                    {canDownload && candidate.level === "SMP" && (
+                    <div className="flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+                        <a
+                          href={`/surat/${candidate.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cn(BTN_PRIMARY_FULL, "sm:flex-1")}
+                        >
+                          <Download size={16} aria-hidden="true" />
+                          Unduh Raport (PDF)
+                        </a>
                     </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-6 space-y-4">
-                    <div className="h-14 w-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto text-emerald-200">
-                      <GraduationCap className="h-8 w-8" />
-                    </div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Belum ada hasil tes</p>
-                    <Button 
-                      onClick={() => setShowQrDialog(true)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md h-10 uppercase text-[10px] tracking-widest"
-                    >
-                      Mulai Tes (Tampilkan QR)
-                    </Button>
-                  </div>
+                  <EmptyState
+                    icon={GraduationCap}
+                    title="Belum ada hasil tes"
+                    description="Tampilkan kode QR agar siswa dapat mengerjakan tes akademik."
+                    className="py-6"
+                    action={
+                      <button type="button" onClick={() => setShowQrDialog(true)} className={BTN_PRIMARY}>
+                        <QrCode size={16} aria-hidden="true" />
+                        Mulai tes (tampilkan QR)
+                      </button>
+                    }
+                  />
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           )}
         </div>
       </div>
 
+      {/* STICKY ACTION BAR */}
+      {(!isLocked || (showAcademic && academicResult)) && (
+        <div className="sticky bottom-4 z-30 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <p className="px-1 text-sm text-slate-600">
+            {isLocked
+              ? "Catatan observasi sudah terkunci."
+              : canSubmit
+                ? "Semua kolom wajib sudah terisi. Siap disimpan dan dikunci."
+                : `Lengkapi dulu: ${missingFields.join(", ")}.`}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {canDownload && candidate.level === "SMP" && (
+              <a href={`/surat/${candidate.id}`} target="_blank" rel="noreferrer" className={BTN_SECONDARY}>
+                <Download size={16} aria-hidden="true" />
+                Unduh Raport (PDF)
+              </a>
+            )}
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={() => setShowConfirm(true)}
+                disabled={!canSubmit}
+                className={BTN_PRIMARY}
+              >
+                <Send size={16} aria-hidden="true" />
+                Simpan & kunci hasil
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* DIALOGS */}
 
       {/* QR Code Access Dialog */}
-      <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
-        <DialogContent className="rounded-[40px] p-0 overflow-hidden max-w-sm border-none shadow-2xl">
-          <div className="bg-emerald-600 p-8 text-center text-white">
-            <div className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <QrCode className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-xl font-bold uppercase tracking-tight">Akademik SMP</h2>
-            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Akses Umum - Siswa Pilih Nama Sendiri</p>
-          </div>
-          <div className="p-10 bg-white flex flex-col items-center">
-            <div className="p-4 bg-white border-4 border-slate-50 rounded-[32px] shadow-inner mb-6">
-              <img 
-                src={origin ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`${origin}/academic`)}` : ""}
-                alt="QR Code Akademik"
-                className="w-[200px] h-[200px]"
-              />
-            </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full text-center">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 leading-none">Link Akses Umum</p>
-              <p className="text-[10px] font-bold text-slate-600 break-all select-all">{origin}/academic</p>
-            </div>
-          </div>
-          <div className="p-6 bg-slate-50 border-t border-slate-100">
-            <Button onClick={() => setShowQrDialog(false)} className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold uppercase tracking-widest text-xs">Tutup</Button>
-          </div>
-        </DialogContent>
+      <Dialog open={showQrDialog} onOpenChange={setShowQrDialog} className="max-w-sm shadow-lg">
+        {(() => {
+          const targetUrl =
+            qrType === "academic"
+              ? `${origin}/academic/${candidate.id}${candidateToken ? `?token=${candidateToken}` : ""}`
+              : qrType === "form_student"
+              ? `${origin}/form/${candidate.id}?role=student${candidateToken ? `&token=${candidateToken}` : ""}`
+              : `${origin}/form/${candidate.id}?role=parent${candidateToken ? `&token=${candidateToken}` : ""}`
+
+          const dialogTitle =
+            qrType === "academic"
+              ? "Akses Tes Akademik"
+              : qrType === "form_student"
+              ? "Formulir Calon Siswa"
+              : "Formulir Orang Tua"
+
+          return (
+            <>
+              <div className="flex items-start gap-3 p-6 pb-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  <QrCode size={20} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-slate-900">{dialogTitle}</h2>
+                  <p className="truncate text-xs text-slate-500 font-medium">{candidate.name}</p>
+                </div>
+              </div>
+
+              {/* Selector Tabs */}
+              <div className="px-6 pb-2">
+                <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+                  {candidate.level === "SMP" && (
+                    <button
+                      type="button"
+                      onClick={() => setQrType("academic")}
+                      className={cn(
+                        "flex-1 rounded-lg py-1.5 transition text-center",
+                        qrType === "academic"
+                          ? "bg-white text-emerald-700 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      Tes Akademik
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setQrType("form_parent")}
+                    className={cn(
+                      "flex-1 rounded-lg py-1.5 transition text-center",
+                      qrType === "form_parent"
+                        ? "bg-white text-emerald-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    Form Ortu
+                  </button>
+                  {candidate.level === "SMP" && (
+                    <button
+                      type="button"
+                      onClick={() => setQrType("form_student")}
+                      className={cn(
+                        "flex-1 rounded-lg py-1.5 transition text-center",
+                        qrType === "form_student"
+                          ? "bg-white text-emerald-700 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      Form Siswa
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-3 px-6 pb-5">
+                <div className="flex h-[210px] w-[210px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-2.5 shadow-inner">
+                  {origin ? (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(targetUrl)}`}
+                      alt="QR Code Akses"
+                      className="h-[190px] w-[190px]"
+                    />
+                  ) : (
+                    <RefreshCw size={20} className="animate-spin text-slate-400" aria-label="Memuat QR code" />
+                  )}
+                </div>
+                <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-center space-y-1">
+                  <p className="text-[11px] font-medium text-slate-500">Tautan Akses Terotentikasi</p>
+                  <p className="select-all break-all text-xs font-mono text-slate-800">{targetUrl}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(targetUrl)
+                    toast.success("Tautan berhasil disalin")
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Salin Tautan Akses
+                </button>
+              </div>
+
+              <div className="flex justify-end border-t border-slate-100 p-3">
+                <button type="button" onClick={() => setShowQrDialog(false)} className={BTN_SECONDARY}>
+                  Tutup
+                </button>
+              </div>
+            </>
+          )
+        })()}
       </Dialog>
-      
+
       {/* Academic Details Dialog */}
-      <Dialog open={showAcademicDetails} onOpenChange={setShowAcademicDetails}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-hidden p-0 rounded-3xl border-none shadow-2xl">
-          <DialogHeader className="p-6 bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
-                  <GraduationCap className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold text-slate-900 uppercase tracking-tight">Detail Jawaban Akademik</DialogTitle>
-                  <p className="text-slate-500 text-xs font-medium uppercase tracking-widest italic">{candidate.name} · Skor: {candidate.academicTestResult?.totalScore.toFixed(0)}</p>
-                </div>
-              </div>
-              <div className="text-right hidden sm:block">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Metode</p>
-                 <p className="text-xs font-bold text-emerald-600 italic">1 Soal = 4 Poin</p>
-              </div>
+      <Dialog
+        open={showAcademicDetails}
+        onOpenChange={setShowAcademicDetails}
+        className="flex max-h-[90vh] w-[95vw] max-w-5xl flex-col overflow-hidden shadow-lg"
+      >
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <GraduationCap size={20} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-slate-900">Detail jawaban akademik</h2>
+              <p className="truncate text-sm text-slate-500">
+                {candidate.name} · Skor: {academicResult?.totalScore.toFixed(0) ?? "-"} · 1 soal = 4 poin
+              </p>
             </div>
-          </DialogHeader>
-          
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] bg-slate-50/30">
-            {academicResponses.length === 0 ? (
-              <div className="py-20 text-center">
-                <AlertCircle className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest italic text-xs">Data tidak ditemukan</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {academicResponses.sort((a: any, b: any) => a.question.order - b.question.order).map((resp: any, idx: number) => {
-                  const isCorrect = resp.isCorrect;
-                  return (
-                    <div key={resp.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:border-emerald-200 transition-all">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-                            isCorrect ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
-                          )}>
-                            {idx + 1}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            {resp.question.subject}
-                          </span>
-                        </div>
-                        <Badge variant={isCorrect ? "success" : "danger"} className="h-6 text-[9px] font-black px-2 rounded-lg">
-                          {isCorrect ? "BENAR" : "SALAH"}
-                        </Badge>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAcademicDetails(false)}
+            aria-label="Tutup"
+            title="Tutup"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5">
+          {academicResponses.length === 0 ? (
+            <EmptyState icon={AlertCircle} title="Data jawaban tidak ditemukan" />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {academicResponses.map((resp, idx) => {
+                const isCorrect = resp.isCorrect
+                return (
+                  <div key={resp.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700 tabular-nums">
+                          {idx + 1}
+                        </span>
+                        <span className="truncate text-sm text-slate-500">{resp.question.subject}</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-800 leading-relaxed mb-6 flex-1">{resp.question.text}</p>
-                      <div className="grid grid-cols-2 gap-3 mt-auto">
-                        <div className={cn("p-3 rounded-xl border flex flex-col justify-center", isCorrect ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100")}>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 leading-none">Jawaban Siswa</span>
-                          <span className={cn("text-xs font-bold", isCorrect ? "text-emerald-700" : "text-rose-700")}>{resp.answer}</span>
-                        </div>
-                        {!isCorrect ? (
-                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-center">
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 leading-none">Kunci</span>
-                            <span className="text-xs font-bold text-emerald-400">{resp.question.correctAnswer}</span>
-                          </div>
-                        ) : (
-                          <div className="p-3 rounded-xl bg-emerald-500 flex items-center justify-center">
-                            <CheckCircle className="h-5 w-5 text-white opacity-40" />
-                          </div>
+                      <span
+                        className={cn(
+                          PILL_BASE,
+                          isCorrect ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
                         )}
-                      </div>
+                      >
+                        {isCorrect ? "Benar" : "Salah"}
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-          
-          <div className="p-5 bg-white border-t border-slate-100 flex justify-end">
-             <Button onClick={() => setShowAcademicDetails(false)} className="h-11 px-8 rounded-xl bg-slate-900 text-white font-bold uppercase tracking-widest text-xs">Tutup</Button>
-          </div>
-        </DialogContent>
+                    <p className="mb-4 flex-1 text-sm font-medium leading-relaxed text-slate-900">{resp.question.text}</p>
+                    <dl className="grid grid-cols-2 gap-2">
+                      <div
+                        className={cn(
+                          "rounded-lg border p-2.5",
+                          isCorrect ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"
+                        )}
+                      >
+                        <dt className="text-xs text-slate-600">Jawaban siswa</dt>
+                        <dd className={cn("mt-0.5 text-sm font-medium", isCorrect ? "text-emerald-800" : "text-rose-800")}>
+                          {resp.answer}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                        <dt className="text-xs text-slate-600">Kunci jawaban</dt>
+                        <dd className="mt-0.5 text-sm font-medium text-slate-900">{resp.question.correctAnswer}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-200 bg-white p-4">
+          <button type="button" onClick={() => setShowAcademicDetails(false)} className={BTN_SECONDARY}>
+            Tutup
+          </button>
+        </div>
       </Dialog>
 
       {/* Confirm Save Dialog */}
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="rounded-3xl p-10 max-w-md border-none shadow-2xl">
-          <DialogHeader className="text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto text-emerald-500">
-              <Lock size={32} />
-            </div>
-            <DialogTitle className="text-2xl font-bold text-slate-900 uppercase tracking-tight">Kunci Data?</DialogTitle>
-            <DialogDescription className="text-slate-500 font-medium">
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm} className="max-w-md shadow-lg">
+        <div className="space-y-4 p-6 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <Lock size={22} aria-hidden="true" />
+          </span>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-semibold text-slate-900">Kunci data?</h2>
+            <p className="text-sm text-slate-500">
               Data yang sudah dikunci tidak dapat diubah kembali. Pastikan semua hasil observasi sudah benar.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-center gap-3 pt-6">
-            <Button variant="outline" onClick={() => setShowConfirm(false)} className="h-12 px-6 rounded-xl border-2 border-slate-100 font-bold text-slate-500 hover:bg-slate-50 uppercase tracking-widest text-xs">Batal</Button>
-            <Button onClick={handleSubmitNote} disabled={submitting} className="h-12 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg uppercase tracking-widest text-xs">Ya, Kunci</Button>
-          </DialogFooter>
-        </DialogContent>
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+          <button type="button" onClick={() => setShowConfirm(false)} className={BTN_SECONDARY}>
+            Batal
+          </button>
+          <button type="button" onClick={handleSubmitNote} disabled={submitting} className={BTN_PRIMARY}>
+            {submitting && <RefreshCw size={16} className="animate-spin" aria-hidden="true" />}
+            {submitting ? "Menyimpan..." : "Ya, kunci"}
+          </button>
+        </div>
       </Dialog>
     </div>
   )

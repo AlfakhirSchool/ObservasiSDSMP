@@ -26,9 +26,10 @@ interface Props {
   candidate: Candidate
   questions: Question[]
   role: string
+  token?: string
 }
 
-export default function PublicFormClient({ candidate, questions, role }: Props) {
+export default function PublicFormClient({ candidate, questions, role, token }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [selectedInterviewer] = useState(candidate.selectedInterviewer || "Belum ditentukan")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -63,6 +64,7 @@ export default function PublicFormClient({ candidate, questions, role }: Props) 
           parentPhone: answers['sys_phone'],
           correctedName: answers['sys_name_corr'],
           role,
+          token,
         }),
       })
 

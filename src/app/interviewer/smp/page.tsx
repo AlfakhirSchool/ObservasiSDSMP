@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import InterviewerDashboardClient from "../interviewer-client"
 
-export default async function InterviewerSmpPage() {
+export default async function InterviewerSMPPage() {
   const session = await auth()
   if (!session) redirect("/login")
 
@@ -13,22 +13,29 @@ export default async function InterviewerSmpPage() {
       notes: true,
     },
     orderBy: {
-      createdAt: 'desc'
-    }
+      createdAt: "desc",
+    },
   })
 
-  const enriched = candidates.map((c) => ({
-    ...c,
+  const rows = candidates.map((c) => ({
+    id: c.id,
+    name: c.name,
+    selectedInterviewer: c.selectedInterviewer,
+    createdAt: c.createdAt.toISOString(),
+    academicYear: c.academicYear,
+    gelombang: c.gelombang,
     hasResponse: c.status !== "PENDING",
     hasNote: c.notes.length > 0,
   }))
 
+  const lockedInterviewer =
+    session.user.role === "interviewer" ? session.user.name ?? undefined : undefined
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="px-3 py-1 bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full">UNIT SMP</div>
-      </div>
-      <InterviewerDashboardClient initialCandidates={enriched as any} />
-    </div>
+    <InterviewerDashboardClient
+      unit="SMP"
+      initialCandidates={rows}
+      lockedInterviewer={lockedInterviewer}
+    />
   )
 }

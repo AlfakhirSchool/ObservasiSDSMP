@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { getAdminStats } from "@/lib/google-sheets"
+import { getInterviewerMonitor } from "@/lib/data-service"
 import { redirect } from "next/navigation"
 import InterviewerMonitorClient from "./interviewer-monitor-client"
 import type { Metadata } from "next"
@@ -12,6 +12,6 @@ export default async function AdminInterviewersPage() {
   const session = await auth()
   if (!session || session.user?.role !== "admin") redirect("/login")
 
-  const stats = await getAdminStats()
-  return <InterviewerMonitorClient interviewers={stats.interviewers} />
+  const interviewers = await getInterviewerMonitor()
+  return <InterviewerMonitorClient interviewers={interviewers} />
 }

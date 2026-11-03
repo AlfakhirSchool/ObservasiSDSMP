@@ -1,8 +1,8 @@
 "use client"
-// Force rebuild to clear Turbopack cache
 
 import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
+import { startPolling } from "@/lib/polling"
+import Link from "next/link"
 import {
   BarChart,
   Bar,
@@ -13,61 +13,91 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
-import Link from "next/link"
 import {
   UserPlus,
-  History,
+  ClipboardCheck,
   CheckCircle2,
   Clock,
-  MoreVertical,
-  LayoutGrid,
-  Search
+  RefreshCw,
+  CircleDot,
+  Search,
+  ChevronRight,
+  BarChart3,
+  Inbox,
+  type LucideIcon,
 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/layout/page-header"
+import { StatCard } from "@/components/ui/stat-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { formatDate, getAcademicYear, cn } from "@/lib/utils"
 
-interface Props {
-  stats: {
-    total: number
-    pending: number
-    received: number
-    reviewed: number
-    completed: number
-    notesTotal: number
-    recentObservations: any[]
-    chartData: any[]
-    monthlyTarget: number
-    progressPercentage: number
-    statusItems: any[]
+interface Observation {
+  id: string
+  candidateId: string
+  interviewerName: string
+  recommendation: string
+  createdAt: string | Date
+  candidate: {
+    name: string
+    level: string
+    room: string | null
   }
 }
 
-function StatCard({ icon: Icon, color, value, label, delay = 0 }: any) {
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      whileHover={{ y: -5, transition: { duration: 0.2 } }}
-      className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center gap-6 shadow-sm hover:shadow-lg transition-all duration-300"
-    >
-      <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-        <Icon className="h-8 w-8" />
-      </div>
-      <div className="flex flex-col items-end flex-1">
-        <div className="text-[36px] font-bold text-[#0F172A] leading-none mb-1.5 tabular-nums tracking-tighter">
-          {value}
-        </div>
-        <div suppressHydrationWarning className="text-[12px] font-bold text-[#64748B] uppercase tracking-widest text-right">
-          {label}
-        </div>
-      </div>
-    </motion.div>
-  )
+interface ChartPoint {
+  name: string
+  baru: number
+  selesai: number
 }
 
-export default function AdminOverviewClient({ stats: initialStats, role = "admin" }: Props & { role?: string }) {
-  const [stats, setStats] = useState(initialStats)
+interface StatusItem {
+  label: string
+  color?: string
+}
+
+interface Stats {
+  total: number
+  pending: number
+  received: number
+  reviewed: number
+  completed: number
+  notesTotal: number
+  recentObservations: Observation[]
+  chartData: ChartPoint[]
+  monthlyTarget: number
+  progressPercentage: number
+  statusItems: StatusItem[]
+}
+
+interface Props {
+  stats: Stats
+  role?: string
+}
+
+const STATUS_ICONS: { icon: LucideIcon; tone: string }[] = [
+  { icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
+  { icon: RefreshCw, tone: "bg-blue-50 text-blue-600" },
+  { icon: Clock, tone: "bg-amber-50 text-amber-600" },
+]
+
+const REC_PILL: Record<string, string> = {
+  Terima: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  Tolak: "bg-rose-50 text-rose-700 ring-rose-200",
+}
+const REC_PILL_DEFAULT = "bg-amber-50 text-amber-700 ring-amber-200"
+
+const inputClass =
+  "h-10 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500"
+
+function toLocalDateString(value: string | Date): string {
+  const d = new Date(value)
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
+export default function AdminOverviewClient({ stats: initialStats, role = "admin" }: Props) {
+  const [stats, setStats] = useState<Stats>(initialStats)
   const [searchQuery, setSearchQuery] = useState("")
   const [dateQuery, setDateQuery] = useState("")
 
@@ -77,301 +107,241 @@ export default function AdminOverviewClient({ stats: initialStats, role = "admin
         const level = role === "admin_sd" ? "SD" : role === "admin_smp" ? "SMP" : ""
         const res = await fetch(`/api/admin/stats${level ? `?level=${level}` : ""}`)
         if (res.ok) {
-          const data = await res.json()
-          setStats(data)
+          setStats((await res.json()) as Stats)
         }
-      } catch (error) {
+      } catch {
         // Silent error for polling
       }
     }
 
-    const interval = setInterval(fetchStats, 10000) // Poll every 10s
-    return () => clearInterval(interval)
+    return startPolling(fetchStats, 30000) // 30s dan berhenti saat tab tersembunyi
   }, [role])
 
-  const getTitle = () => {
-    if (role === "admin_sd") return "Dashboard Unit SD"
-    if (role === "admin_smp") return "Dashboard Unit SMP"
-    return "Ringkasan Pusat"
-  }
+  const title =
+    role === "admin_sd" ? "Dashboard Unit SD" : role === "admin_smp" ? "Dashboard Unit SMP" : "Ringkasan"
+
+  const hasChartData = stats.chartData.some((d) => d.baru > 0 || d.selesai > 0)
+  const progress = Math.min(100, Math.max(0, stats.progressPercentage))
+  const query = searchQuery.trim().toLowerCase()
+
+  const filtered = stats.recentObservations.filter((obs) => {
+    const matchSearch =
+      obs.candidate.name.toLowerCase().includes(query) ||
+      obs.interviewerName.toLowerCase().includes(query)
+    // Bandingkan dengan tanggal lokal agar sesuai zona waktu pengguna
+    const matchDate = !dateQuery || toLocalDateString(obs.createdAt) === dateQuery
+    return matchSearch && matchDate
+  })
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Page Header */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-[32px] font-black text-[#0F172A] m-0 tracking-tight italic uppercase">
-            {getTitle()}
-          </h2>
-          <p className="text-[14px] text-[#64748B] m-0 mt-1.5 font-bold tracking-widest uppercase opacity-70">
-            Al Fakhir Modern Islamic School • TA {getAcademicYear()} • Monitoring Progres
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E2E8F0] rounded-2xl shadow-sm">
-          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-[12px] font-black text-[#0F172A] tracking-widest uppercase">SISTEM AKTIF</span>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={title}
+        description="Pemantauan progres observasi penerimaan siswa"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+              TA {getAcademicYear()}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+              Sistem aktif
+            </span>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Siswa Baru" value={stats.total} icon={UserPlus} tone="blue" />
+        <StatCard label="Selesai Observasi" value={stats.notesTotal} icon={ClipboardCheck} tone="emerald" />
+        <StatCard label="Diterima" value={stats.completed} icon={CheckCircle2} tone="violet" />
+        <StatCard label="Tertunda" value={stats.pending} icon={Clock} tone="amber" />
       </div>
 
-      {/* STAT CARDS - Refined proportions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard 
-          icon={UserPlus} 
-          color="bg-[#E0F2F1] text-[#26A69A]" 
-          value={stats.total} 
-          label="SISWA BARU" 
-          delay={0.1}
-        />
-        <StatCard 
-          icon={History} 
-          color="bg-[#E3F2FD] text-[#42A5F5]" 
-          value={stats.notesTotal} 
-          label="SELESAI OBSERVASI" 
-          delay={0.2}
-        />
-        <StatCard 
-          icon={CheckCircle2} 
-          color="bg-[#E8F5E9] text-[#66BB6A]" 
-          value={stats.completed} 
-          label="DITERIMA" 
-          delay={0.3}
-        />
-        <StatCard 
-          icon={Clock} 
-          color="bg-[#FFEBEE] text-[#EF5350]" 
-          value={stats.pending} 
-          label="TERTUNDA" 
-          delay={0.4}
-        />
-      </div>
-
-      {/* MAIN CONTENT ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-        {/* Left: Bar Chart Card */}
-        <div className="lg:col-span-9 bg-white border border-[#E2E8F0] rounded-2xl p-8 shadow-sm">
-          <div className="flex items-center justify-between mb-10">
-            <h3 className="text-[18px] font-bold text-[#0F172A]">Bar Chart Siswa Baru & Selesai</h3>
-            <div className="flex gap-6 text-[13px] font-bold">
-              <div className="flex items-center gap-2 text-[#26A69A]">
-                <div className="w-8 h-2.5 rounded bg-[#26A69A]" /> Baru
-              </div>
-              <div className="flex items-center gap-2 text-[#42A5F5]">
-                <div className="w-8 h-2.5 rounded bg-[#42A5F5]" /> Selesai
-              </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">Siswa baru &amp; observasi selesai</h2>
+            <p className="text-sm text-slate-500">Aktivitas 7 hari terakhir</p>
+          </div>
+          {hasChartData ? (
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={stats.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: "#475569" }}
+                    axisLine={{ stroke: "#CBD5E1" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#F1F5F9" }}
+                    contentStyle={{ borderRadius: 12, border: "1px solid #E2E8F0", fontSize: 13 }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 13, color: "#475569" }} />
+                  <Bar dataKey="baru" name="Siswa baru" fill="#3B82F6" maxBarSize={28} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="selesai" name="Observasi selesai" fill="#10B981" maxBarSize={28} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          
-          <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 12, fill: '#94A3B8', fontWeight: 600 }} 
-                  axisLine={{ stroke: '#E2E8F0' }} 
-                  tickLine={false}
-                  dy={15}
-                />
-                <YAxis 
-                  tick={{ fontSize: 12, fill: '#94A3B8', fontWeight: 600 }} 
-                  axisLine={false} 
-                  tickLine={false}
-                  domain={[0, 15]}
-                  ticks={[0, 5, 10, 15]}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#F8FAFC' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: '12px' }}
-                />
-                <Bar dataKey="baru" fill="#26A69A" barSize={22} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="selesai" fill="#42A5F5" barSize={22} radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          ) : (
+            <EmptyState
+              icon={BarChart3}
+              title="Belum ada aktivitas"
+              description="Belum ada siswa baru atau observasi selesai dalam 7 hari terakhir."
+              className="h-72"
+            />
+          )}
+        </section>
 
-        {/* Right: Target Card Card */}
-        <div className="lg:col-span-3 flex flex-col gap-6">
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-7 shadow-sm">
-            <h3 className="text-[12px] font-extrabold text-[#475569] uppercase tracking-widest mb-6">
-              TARGET OBSERVASI BULAN INI
-            </h3>
-            <div className="text-[56px] font-black text-[#0F172A] leading-none mb-2 tracking-tighter">
+        <div className="flex flex-col gap-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-slate-900">Target observasi</h2>
+            <p className="text-sm text-slate-500">Bulan ini</p>
+            <p className="mt-4 text-4xl font-bold leading-none tracking-tight text-slate-900 tabular-nums">
               {stats.monthlyTarget}
-            </div>
-            <p className="text-[13px] text-[#94A3B8] font-medium mb-8">Target Observasi Bulan Ini</p>
-            
-            <div className="space-y-3">
-              <div className="h-3.5 w-full bg-[#F1F5F9] rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-[#26A69A] rounded-full shadow-sm transition-all duration-1000" 
-                  style={{ width: `${stats.progressPercentage}%` }} 
-                />
+              <span className="ml-2 text-sm font-medium text-slate-500">siswa</span>
+            </p>
+            <div className="mt-5 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">
+                  {stats.notesTotal} dari {stats.monthlyTarget} diobservasi
+                </span>
+                <span className="font-semibold text-slate-900 tabular-nums">{stats.progressPercentage}%</span>
               </div>
-              <div className="flex justify-between text-[12px] font-bold text-[#64748B]">
-                <span className="tracking-widest">PROGRES</span>
-                <span>{stats.progressPercentage}%</span>
+              <div
+                className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Progres target observasi"
+              >
+                <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }} />
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm flex-1">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <LayoutGrid size={20} />
-              </div>
-              <h3 className="text-[15px] font-bold text-[#0F172A]">Status Ringkasan</h3>
-            </div>
-            <div className="space-y-5">
-              {stats.statusItems.map((item: any, idx: number) => (
-                <div key={idx} className="flex items-center gap-4 group cursor-default">
-                  <div className={`h-2.5 w-2.5 rounded-full ${item.color} ring-4 ${item.color.replace('bg-', 'ring-')}/10`} />
-                  <div className="text-[13px] font-bold text-[#475569] group-hover:text-slate-900 transition-colors">
-                    {item.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <section className="flex-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-slate-900">Status ringkasan</h2>
+            <ul className="mt-4 space-y-3">
+              {stats.statusItems.map((item, idx) => {
+                const meta = STATUS_ICONS[idx] ?? { icon: CircleDot, tone: "bg-slate-100 text-slate-600" }
+                const Icon = meta.icon
+                return (
+                  <li key={item.label} className="flex items-center gap-3">
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", meta.tone)}>
+                      <Icon size={16} />
+                    </span>
+                    <span className="text-sm text-slate-700">{item.label}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
         </div>
       </div>
 
-      {/* BOTTOM ROW: Recent Observations */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h3 className="text-[18px] font-bold text-[#0F172A]">Observasi Terkini</h3>
-            <p className="text-[13px] text-[#94A3B8] mt-1 font-medium">Data input catatan terbaru dari tim pewawancara</p>
+            <h2 className="text-base font-semibold text-slate-900">Observasi terkini</h2>
+            <p className="text-sm text-slate-500">Data input catatan terbaru dari tim pewawancara</p>
           </div>
-          
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-            <div className="relative group w-full md:w-auto">
-              <input 
-                type="date"
-                value={dateQuery}
-                onChange={(e) => setDateQuery(e.target.value)}
-                className="h-10 px-4 w-full md:w-auto bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
-              />
-            </div>
-            <div className="relative group w-full md:w-auto">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Cari nama siswa..." 
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={dateQuery}
+              onChange={(e) => setDateQuery(e.target.value)}
+              aria-label="Filter tanggal observasi"
+              className={cn(inputClass, "px-3")}
+            />
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Cari nama siswa atau pewawancara"
+                aria-label="Cari nama siswa atau pewawancara"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 pl-10 pr-4 w-full md:w-64 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(inputClass, "w-full pl-9 pr-3 sm:w-72")}
               />
             </div>
           </div>
         </div>
-        
-        <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-          {(() => {
-            const filtered = stats.recentObservations.filter(obs => {
-              const matchSearch = obs.candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                  obs.interviewerName.toLowerCase().includes(searchQuery.toLowerCase());
-              
-              let matchDate = true;
-              if (dateQuery) {
-                // Konversi tanggal UTC dari database ke tanggal lokal
-                const obsDateObj = new Date(obs.createdAt);
-                // Kita gunakan YYYY-MM-DD secara manual dengan getFullYear, getMonth, getDate agar sesuai dengan timezone lokal
-                const year = obsDateObj.getFullYear();
-                const month = String(obsDateObj.getMonth() + 1).padStart(2, '0');
-                const day = String(obsDateObj.getDate()).padStart(2, '0');
-                const obsDateStr = `${year}-${month}-${day}`;
-                
-                matchDate = obsDateStr === dateQuery;
-              }
-              
-              return matchSearch && matchDate;
-            })
-            
-            if (filtered.length === 0) {
+
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Inbox}
+            title={searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Belum ada data observasi masuk"}
+            description={searchQuery || dateQuery ? "Coba ubah kata kunci atau tanggal." : undefined}
+          />
+        ) : (
+          <ul className="max-h-[520px] divide-y divide-slate-100 overflow-y-auto">
+            {filtered.map((obs) => {
+              const isNew = new Date(obs.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000
               return (
-                <div className="text-center py-10 text-slate-400 font-medium bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100">
-                  {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Belum ada data observasi masuk"}
-                </div>
-              )
-            }
-            
-            return filtered.map((obs, idx) => {
-              const isNew = new Date(obs.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000;
-              return (
-              <motion.div
-                key={obs.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * (idx % 10) }}
-              >
-                <Link 
-                  href={`/admin/candidates/${obs.candidateId}`}
-                  className={cn(
-                    "flex items-center justify-between p-4 border rounded-2xl transition-all group cursor-pointer",
-                    isNew ? "border-emerald-200 bg-emerald-50/40 shadow-sm hover:bg-emerald-50/60" : "border-[#F1F5F9] hover:border-emerald-200 hover:bg-emerald-50/20"
-                  )}
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 border",
-                      isNew ? "bg-white border-emerald-100 shadow-sm" : "bg-slate-50 border-slate-100 group-hover:bg-white group-hover:border-emerald-100"
-                    )}>
-                      <img 
-                        src={obs.candidate.level === "SD" ? "/logo-sd.png" : "/logo-smp.png"} 
-                        alt={`Logo ${obs.candidate.level}`} 
-                        className="w-6 h-6 object-contain"
+                <li key={obs.id}>
+                  <Link
+                    href={`/admin/candidates/${obs.candidateId}`}
+                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/40"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={obs.candidate.level === "SD" ? "/logo-sd.png" : "/logo-smp.png"}
+                        alt={`Logo ${obs.candidate.level}`}
+                        className="h-6 w-6 object-contain"
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="text-[14px] font-bold text-[#0F172A] truncate uppercase tracking-tight">{obs.candidate.name}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-900">{obs.candidate.name}</p>
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                          {obs.candidate.level}
+                        </span>
                         {isNew && (
-                          <Badge className="text-[8px] font-black tracking-widest px-1.5 h-3.5 bg-emerald-500 text-white border-none animate-pulse">BARU</Badge>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                            Baru
+                          </span>
                         )}
-                        <Badge variant="muted" className="text-[9px] font-black uppercase tracking-tighter px-1.5 h-4 border-slate-200 text-slate-400 bg-white">
-                          UNIT {obs.candidate.level}
-                        </Badge>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1.5">
-                        <div className="text-[11px] text-[#475569] font-black uppercase tracking-tight flex items-center gap-1.5">
-                          <span className="opacity-50">PEWAWANCARA:</span>
-                          <span className="text-emerald-600 font-extrabold">{obs.interviewerName}</span>
-                        </div>
-                        <div className="hidden sm:block w-1 h-1 rounded-full bg-slate-300" />
-                        <div className="text-[11px] text-[#475569] font-black uppercase tracking-tight flex items-center gap-1.5">
-                          <span className="opacity-50">RUANGAN:</span>
-                          <span className="text-blue-600 font-extrabold">{obs.candidate.room || "-"}</span>
-                        </div>
-                        <div className="hidden sm:block w-1 h-1 rounded-full bg-slate-300" />
-                        <div className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest">
-                          {formatDate(obs.createdAt)}
-                        </div>
-                      </div>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        Pewawancara: <span className="text-slate-700">{obs.interviewerName}</span>
+                        <span aria-hidden="true"> · </span>
+                        Ruangan: <span className="text-slate-700">{obs.candidate.room || "-"}</span>
+                        <span aria-hidden="true"> · </span>
+                        {formatDate(obs.createdAt)}
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge 
-                      variant={obs.recommendation === "Terima" ? "success" : obs.recommendation === "Tolak" ? "danger" : "warning"} 
-                      className="px-3 py-1 font-black text-[9px] uppercase tracking-widest"
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                        REC_PILL[obs.recommendation] ?? REC_PILL_DEFAULT
+                      )}
                     >
                       {obs.recommendation}
-                    </Badge>
-                    <div className="h-8 w-8 flex items-center justify-center hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-100 text-slate-300 hover:text-slate-600">
-                      <MoreVertical size={14} />
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            )})
-          })()}
-        </div>
-      </div>
-      {/* Footer Branding */}
-      <div className="mt-12 mb-6 text-center space-y-2 opacity-50">
-        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.4em]">Al Fakhir Modern Islamic School</p>
-        <p className="text-[10px] text-slate-400 font-medium">Developer by Feri</p>
-      </div>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      <p className="pb-2 text-center text-xs text-slate-500">
+        Al Fakhir Modern Islamic School · Developer by Feri
+      </p>
     </div>
   )
 }

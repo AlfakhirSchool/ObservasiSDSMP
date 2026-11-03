@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Users,
   FileText,
@@ -14,252 +12,337 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
-  TrendingUp,
+  UserCheck,
 } from "lucide-react"
+import { PageHeader } from "@/components/layout/page-header"
+import { StatCard } from "@/components/ui/stat-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { formatDate, cn } from "@/lib/utils"
-import { INTERVIEWERS, ITEMS_PER_PAGE } from "@/lib/constants"
+import { ITEMS_PER_PAGE } from "@/lib/constants"
+import { PeriodFilter } from "@/components/ui/period-filter"
+import { PERIOD_ALL, PERIOD_LATEST, filterByPeriod, listPeriods, type PeriodFilterValue } from "@/lib/period"
 
 interface Candidate {
   id: string
   name: string
-  level: string
   hasResponse: boolean
   hasNote: boolean
   selectedInterviewer: string | null
-  submittedAt?: Date
   createdAt: string
+  academicYear: string | null
+  gelombang: number
 }
 
 interface Props {
+  unit: "SD" | "SMP"
   initialCandidates: Candidate[]
+  /** When set (role interviewer), the list is locked to this interviewer and the name select is hidden. */
+  lockedInterviewer?: string
 }
 
-export default function InterviewerDashboardClient({ initialCandidates }: Props) {
+type StatusFilter = "" | "pending" | "done" | "no-form"
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "", label: "Semua status" },
+  { value: "pending", label: "Perlu observasi" },
+  { value: "done", label: "Sudah dicatat" },
+  { value: "no-form", label: "Formulir belum ada" },
+]
+
+const FIELD_CLASS =
+  "h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500"
+
+const PILL_BASE = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset"
+
+function UnitBadge({ unit }: { unit: "SD" | "SMP" }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
+      style={{ backgroundColor: unit === "SMP" ? "#0D5C63" : "#E67E22" }}
+    >
+      Unit {unit}
+    </span>
+  )
+}
+
+export default function InterviewerDashboardClient({ unit, initialCandidates, lockedInterviewer }: Props) {
   const router = useRouter()
-  const [selectedName, setSelectedName] = useState("")
   const [search, setSearch] = useState("")
   const [dateQuery, setDateQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [page, setPage] = useState(1)
+  const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
 
   const candidates = useMemo(() => {
-    if (!selectedName) return initialCandidates
-    return initialCandidates.filter(c => c.selectedInterviewer === selectedName)
-  }, [initialCandidates, selectedName])
+    if (!lockedInterviewer) return initialCandidates
+    return initialCandidates.filter((c) => c.selectedInterviewer === lockedInterviewer)
+  }, [initialCandidates, lockedInterviewer])
+
+  const periods = useMemo(() => listPeriods(candidates), [candidates])
+
+  // Mencari nama menembus penyembunyian data lama agar siswa lama tetap bisa ditemukan.
+  const scoped = useMemo(() => {
+    const effectivePeriod = period === PERIOD_LATEST && search.trim() ? PERIOD_ALL : period
+    return filterByPeriod(candidates, effectivePeriod, periods)
+  }, [candidates, periods, period, search])
 
   const stats = useMemo(() => {
     return {
-      total: candidates.length,
-      withForms: candidates.filter((c) => c.hasResponse).length,
-      withNotes: candidates.filter((c) => c.hasNote).length,
-      pending: candidates.filter((c) => c.hasResponse && !c.hasNote).length,
+      total: scoped.length,
+      withForms: scoped.filter((c) => c.hasResponse).length,
+      withNotes: scoped.filter((c) => c.hasNote).length,
+      pending: scoped.filter((c) => c.hasResponse && !c.hasNote).length,
     }
-  }, [candidates])
+  }, [scoped])
 
   const filtered = useMemo(() => {
-    return candidates.filter((c) => {
+    return scoped.filter((c) => {
       const matchSearch = c.name.toLowerCase().includes(search.toLowerCase())
       let matchDate = true
       if (dateQuery && c.createdAt) {
         const d = new Date(c.createdAt)
         const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
+        const month = String(d.getMonth() + 1).padStart(2, "0")
+        const day = String(d.getDate()).padStart(2, "0")
         matchDate = `${year}-${month}-${day}` === dateQuery
       }
-      return matchSearch && matchDate
+      let matchStatus = true
+      if (statusFilter === "pending") matchStatus = c.hasResponse && !c.hasNote
+      else if (statusFilter === "done") matchStatus = c.hasNote
+      else if (statusFilter === "no-form") matchStatus = !c.hasResponse
+      return matchSearch && matchDate && matchStatus
     })
-  }, [candidates, search, dateQuery])
+  }, [scoped, search, dateQuery, statusFilter])
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const currentPage = Math.min(page, totalPages)
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const hasActiveFilter = Boolean(search || dateQuery || statusFilter)
 
-  const kpis = [
-    { label: "Siswa Saya", value: stats.total, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Formulir Masuk", value: stats.withForms, icon: FileText, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Selesai Dicatat", value: stats.withNotes, icon: CheckCircle, color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Perlu Tindakan", value: stats.pending, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-  ]
+  const resetFilters = () => {
+    setSearch("")
+    setDateQuery("")
+    setStatusFilter("")
+    setPage(1)
+  }
 
   return (
-    <div className="flex flex-col gap-10 animate-in fade-in duration-700 pb-20">
-      {/* Header with Selector */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter">Pewawancara</h1>
-          <p className="text-slate-400 font-medium tracking-wide">
-            {selectedName ? `Menampilkan tugas untuk ${selectedName}` : "Menampilkan seluruh siswa yang terdaftar"}
-          </p>
-          <div className="h-1.5 w-32 bg-emerald-500 rounded-full mt-2" />
-        </div>
-
-        <div className="w-full md:w-72">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Pilih Nama Anda</label>
-          <select 
-            value={selectedName}
-            onChange={(e) => { setSelectedName(e.target.value); setPage(1); }}
-            className="w-full h-12 bg-white border border-slate-200 rounded-2xl px-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all shadow-sm"
-          >
-            <option value="">-- Pilih Nama Pewawancara --</option>
-            {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
-          </select>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        badge={<UnitBadge unit={unit} />}
+        title="Dashboard Pewawancara"
+        description="Daftar siswa dan progres observasi"
+        actions={
+          lockedInterviewer ? (
+            <p className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+              <UserCheck size={16} className="text-emerald-600" aria-hidden="true" />
+              Menampilkan siswa untuk <span className="font-semibold text-slate-900">{lockedInterviewer}</span>
+            </p>
+          ) : undefined
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpis.map((kpi) => (
-          <div key={kpi.label} className="group p-8 rounded-[32px] bg-white border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className={`h-14 w-14 rounded-2xl ${kpi.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                <kpi.icon className={`h-7 w-7 ${kpi.color}`} />
-              </div>
-              <TrendingUp className="h-5 w-5 text-slate-100 group-hover:text-emerald-500 transition-colors" />
-            </div>
-            <p className="text-4xl font-black text-slate-900 tracking-tight">{kpi.value}</p>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label={lockedInterviewer ? "Siswa saya" : "Total siswa"} value={stats.total} icon={Users} tone="blue" />
+        <StatCard label="Formulir masuk" value={stats.withForms} icon={FileText} tone="emerald" />
+        <StatCard label="Selesai dicatat" value={stats.withNotes} icon={CheckCircle} tone="violet" />
+        <StatCard label="Perlu tindakan" value={stats.pending} icon={Clock} tone="amber" />
       </div>
 
-      {/* Filter & Table */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row items-center gap-4 max-w-2xl">
-          <div className="relative group w-full sm:w-auto">
-            <input 
-              type="date"
-              value={dateQuery}
-              onChange={(e) => { setDateQuery(e.target.value); setPage(1) }}
-              className="h-14 w-full sm:w-auto px-6 rounded-[24px] border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all shadow-sm cursor-pointer"
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-56 flex-1 flex-col gap-1">
+          <label htmlFor="search-student" className="text-sm font-medium text-slate-700">
+            Cari siswa
+          </label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
             />
-          </div>
-          <div className="relative group flex-1 w-full">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
             <input
+              id="search-student"
               type="text"
               placeholder="Cari nama siswa..."
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="h-14 w-full rounded-[24px] border border-slate-200 bg-white pl-14 pr-6 text-sm text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all shadow-sm"
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+              className={cn(FIELD_CLASS, "w-full pl-9")}
             />
           </div>
         </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-date" className="text-sm font-medium text-slate-700">
+            Tanggal masuk
+          </label>
+          <input
+            id="filter-date"
+            type="date"
+            value={dateQuery}
+            onChange={(e) => {
+              setDateQuery(e.target.value)
+              setPage(1)
+            }}
+            className={cn(FIELD_CLASS, "w-full sm:w-auto")}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-status" className="text-sm font-medium text-slate-700">
+            Status observasi
+          </label>
+          <select
+            id="filter-status"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as StatusFilter)
+              setPage(1)
+            }}
+            className={cn(FIELD_CLASS, "w-full sm:w-52")}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <PeriodFilter periods={periods} value={period} onChange={(v) => { setPeriod(v); setPage(1) }} />
+        {hasActiveFilter && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+          >
+            Reset filter
+          </button>
+        )}
+      </div>
 
-        <div className="rounded-[40px] border border-slate-200 bg-white overflow-hidden shadow-2xl shadow-slate-200/50">
+      {/* Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {paginated.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={hasActiveFilter ? "Tidak ada siswa yang cocok" : "Belum ada siswa"}
+            description={
+              hasActiveFilter
+                ? "Ubah kata kunci atau filter untuk melihat siswa lain."
+                : lockedInterviewer
+                  ? "Belum ada siswa yang ditugaskan kepada Anda."
+                  : "Belum ada siswa yang terdaftar pada unit ini."
+            }
+            action={
+              hasActiveFilter ? (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                >
+                  Reset filter
+                </button>
+              ) : undefined
+            }
+          />
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Nama Siswa</th>
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Jenjang</th>
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Pewawancara</th>
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Formulir</th>
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Status Observasi</th>
-                  <th className="px-8 py-5 font-bold text-slate-400 uppercase tracking-widest text-[10px] text-right">Tindakan</th>
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-slate-50">
+                <tr className="border-b border-slate-200">
+                  <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Nama siswa</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Pewawancara</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Formulir</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status observasi</th>
+                  <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Tindakan</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {paginated.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-24 text-slate-400 font-medium italic">
-                      Belum ada siswa yang ditugaskan kepada Anda.
+              <tbody className="divide-y divide-slate-100">
+                {paginated.map((c) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/interviewer/${c.id}`)}
+                    className="cursor-pointer hover:bg-slate-50"
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{c.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{formatDate(c.createdAt)} · Gelombang {c.gelombang}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600"
+                          aria-hidden="true"
+                        >
+                          {c.selectedInterviewer?.charAt(0).toUpperCase() || "?"}
+                        </span>
+                        <span className="text-sm text-slate-700">{c.selectedInterviewer || "Belum ditunjuk"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.hasResponse ? (
+                        <span className={cn(PILL_BASE, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Sudah diisi</span>
+                      ) : (
+                        <span className={cn(PILL_BASE, "bg-slate-100 text-slate-600 ring-slate-200")}>Belum ada</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.hasNote ? (
+                        <span className={cn(PILL_BASE, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Sudah dicatat</span>
+                      ) : c.hasResponse ? (
+                        <span className={cn(PILL_BASE, "bg-amber-50 text-amber-700 ring-amber-200")}>Perlu observasi</span>
+                      ) : (
+                        <span className={cn(PILL_BASE, "bg-slate-100 text-slate-600 ring-slate-200")}>-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/interviewer/${c.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                      >
+                        Buka detail
+                        <ArrowRight size={14} aria-hidden="true" />
+                      </Link>
                     </td>
                   </tr>
-                ) : (
-                  paginated.map((c) => (
-                    <tr 
-                      key={c.id} 
-                      onClick={() => router.push(`/interviewer/${c.id}`)}
-                      className="group hover:bg-slate-50/50 cursor-pointer transition-colors duration-200"
-                    >
-                      <td className="px-8 py-7">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                            <img 
-                              src={c.level === "SD" ? "/logo-sd.png" : "/logo-smp.png"} 
-                              alt={c.level} 
-                              className="w-6 h-6 object-contain"
-                            />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-black text-slate-900 text-lg group-hover:text-emerald-600 transition-colors italic uppercase tracking-tighter">
-                              {c.name}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                              {formatDate(c.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-7">
-                        <Badge className={c.level === "SD" ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-purple-50 text-purple-600 border-purple-100"}>
-                          {c.level}
-                        </Badge>
-                      </td>
-                      <td className="px-8 py-7">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
-                            {c.selectedInterviewer?.charAt(0) || "?"}
-                          </div>
-                          <span className="font-bold text-[13px] text-slate-600 truncate max-w-[120px]">
-                            {c.selectedInterviewer || "Belum Ditunjuk"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-7">
-                        <div className="flex items-center gap-2">
-                           <div className={`h-2 w-2 rounded-full ${c.hasResponse ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "bg-slate-200"}`} />
-                           <span className={`font-bold text-xs uppercase tracking-tight ${c.hasResponse ? "text-emerald-600" : "text-slate-400"}`}>
-                             {c.hasResponse ? "Selesai Diisi" : "Belum Ada"}
-                           </span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-7">
-                        <Badge variant={c.hasNote ? "success" : "warning"} className="font-bold italic">
-                          {c.hasNote ? "SUDAH DICATAT" : "PERLU OBSERVASI"}
-                        </Badge>
-                      </td>
-                      <td className="px-8 py-7 text-right">
-                        <div className="flex items-center justify-end gap-3 text-slate-300 group-hover:text-emerald-500 transition-colors">
-                           <span className="text-xs font-black italic uppercase">Buka Detail</span>
-                           <ArrowRight className="h-5 w-5" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
+        )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-8 py-6 border-t border-slate-100 bg-slate-50/30">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {page} / {totalPages} HALAMAN
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="h-10 rounded-xl"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="h-10 rounded-xl"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
-              </div>
+        {/* Pagination */}
+        {filtered.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm text-slate-600 tabular-nums">
+              Halaman {currentPage} dari {totalPages} · {filtered.length} siswa
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                aria-label="Halaman sebelumnya"
+                title="Halaman sebelumnya"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="Halaman berikutnya"
+                title="Halaman berikutnya"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

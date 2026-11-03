@@ -36,22 +36,21 @@ export async function generateCandidateSummary(
     .join("\n")
 
   const prompt = `
-Tugas: Buat ringkasan evaluasi yang SANGAT PENDEK, PADAT, dan JELAS untuk calon siswa ${level} bernama ${candidateName}.
-Karakteristik: Langsung ke inti (Executive Summary), bahasa profesional, tanpa kata-kata pembuka/basa-basi.
+Tugas: Ringkas calon siswa ${level} bernama ${candidateName} untuk dibaca sekilas oleh pewawancara.
+Aturan keras: HANYA inti. Tanpa pembuka/penutup, tanpa kalimat panjang, tanpa mengulang isi jawaban, tanpa skor atau persentase.
 
-${level === "SMP" 
-  ? "BANDINGKAN JAWABAN: Soroti keselarasan atau kontradiksi antara jawaban ORANG TUA dan SISWA." 
-  : "PROFIL KELUARGA: Ringkas keseriusan dan profil keluarga berdasarkan jawaban ORANG TUA."}
+${level === "SMP"
+  ? "Fokus: kepribadian/kesiapan siswa; sebut hanya jika ada kontradiksi jawaban ORANG TUA vs SISWA."
+  : "Fokus: keseriusan dan profil keluarga dari jawaban ORANG TUA."}
 
 Data Jawaban:
 ${formattedAnswers}
 
-Format Output (WAJIB SINGKAT):
-**RINGKASAN INTI**: (Maksimal 2 kalimat padat)
-**KESELARASAN**: [X]% (Skor kecocokan data ortu vs siswa/skor reliabilitas)
-**POIN UTAMA**: (List 3-4 kata kunci/poin sangat pendek)
-**RED FLAGS**: (Jika ada, sebutkan langsung intinya. Jika tidak ada, tulis "Nihil")
-**REKOMENDASI SKOR**: [X]/10
+Format Output (ikuti persis, total maksimal 60 kata):
+**RINGKASAN**: (1 kalimat, maksimal 20 kata)
+**POIN UTAMA**:
+- (maksimal 3 poin, masing-masing maksimal 6 kata)
+**PERHATIAN**: (1 kalimat singkat; tulis "Nihil" jika tidak ada)
   `.trim()
 
   const result = await model.generateContent(prompt)

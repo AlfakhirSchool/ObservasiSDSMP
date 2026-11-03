@@ -10,12 +10,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      Role     @default(INTERVIEWER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  username     String?  @unique
+  passwordHash String?
+  email        String?  @unique
+  name         String?
+  role         Role     @default(INTERVIEWER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Candidate {
@@ -32,11 +34,17 @@ model Candidate {
   parentPhone         String?
   correctedName       String?
   academicYear        String?
+  gelombang           Int               @default(1)
+  nim                 String?
   aiSummary           AiSummary?
   academicTestResult  AcademicTestResult?
   academicResponses   AcademicResponse[]
   formAnswers         FormAnswer[]
   notes               InterviewerNote[]
+
+  @@index([level, academicYear])
+  @@index([selectedInterviewer])
+  @@index([createdAt])
 }
 
 model AcademicQuestion {
@@ -111,6 +119,9 @@ model InterviewerNote {
   updatedAt          DateTime  @updatedAt
   otherNotes         String?
   candidate          Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  // Satu catatan per siswa: mencegah catatan ganda saat dua permintaan masuk bersamaan.
+  @@unique([candidateId])
 }
 
 model AiSummary {
@@ -124,6 +135,8 @@ model AiSummary {
 
 enum Role {
   ADMIN
+  ADMIN_SD
+  ADMIN_SMP
   INTERVIEWER
 }
 
@@ -137,4 +150,33 @@ enum Status {
   RESPONSE_RECEIVED
   REVIEWED
   COMPLETED
+}
+
+/// Pembatasan laju (login, AI, form publik) yang tahan multi-instance karena disimpan di database.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
+
+/// Riwayat aktivitas (audit log): siapa melakukan apa, kapan, pada siapa/apa. Jangan simpan password atau NIM.
+model ActivityLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  /// Null untuk pengunjung publik atau percobaan login dengan username tak dikenal.
+  actorId     String?
+  actorName   String
+  actorRole   String
+  action      String
+  targetType  String?
+  targetId    String?
+  targetLabel String?
+  detail      String?
+  ip          String?
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
 }

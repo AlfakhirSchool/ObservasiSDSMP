@@ -1,18 +1,21 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { logActivity } from "@/lib/activity-log"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { revalidatePath } from "next/cache"
+import { Prisma } from "@prisma/client"
+
+const text = (message: string) => z.string().trim().min(1, message).max(5000, "Teks terlalu panjang (maks 5000 karakter)")
 
 const NoteSchema = z.object({
-  candidateId: z.string(),
-  observation: z.string().min(1, "Catatan observasi wajib diisi"),
-  academicAssessment: z.string().min(1, "Penilaian akademik wajib diisi"),
-  familySupport: z.string().min(1, "Catatan keluarga wajib diisi"),
-  characterNotes: z.string().min(1, "Catatan karakter wajib diisi"),
-  otherNotes: z.string().optional(),
+  candidateId: z.string().min(1),
+  observation: text("Catatan observasi wajib diisi"),
+  academicAssessment: text("Penilaian akademik wajib diisi"),
+  familySupport: text("Catatan keluarga wajib diisi"),
+  characterNotes: text("Catatan karakter wajib diisi"),
+  otherNotes: z.string().trim().max(5000, "Teks terlalu panjang (maks 5000 karakter)").optional(),
   recommendation: z.enum(["Terima", "Pertimbangkan", "Tolak"]),
-  interviewerName: z.string().min(1, "Nama pewawancara wajib diisi"),
   aiSummary: z.string().optional(),
 })
 
@@ -20,45 +23,59 @@ export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  const role = session.user.role
+  if (role !== "interviewer" && !role.startsWith("admin")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
-    const body = await request.json()
-    const validated = NoteSchema.parse(body)
+    const validated = NoteSchema.parse(await request.json())
 
     const candidate = await prisma.candidate.findUnique({
       where: { id: validated.candidateId },
-      include: { notes: true }
+      select: { id: true, name: true, selectedInterviewer: true, notes: { select: { isLocked: true } } },
     })
 
     if (!candidate) {
       return NextResponse.json({ error: "Kandidat tidak ditemukan" }, { status: 404 })
     }
 
-    if (candidate.notes.some(n => n.isLocked)) {
-      return NextResponse.json(
-        { error: "Catatan sudah dikirim dan tidak dapat diubah" },
-        { status: 409 }
-      )
+    // Pewawancara hanya boleh mengisi catatan untuk siswa yang ditugaskan kepadanya.
+    if (role === "interviewer" && candidate.selectedInterviewer !== session.user.name) {
+      return NextResponse.json({ error: "Siswa ini bukan tanggung jawab Anda" }, { status: 403 })
     }
 
-    const note = await prisma.interviewerNote.create({
-      data: {
-        candidateId: validated.candidateId,
-        interviewerName: validated.interviewerName,
-        interviewerEmail: session.user.email || "",
-        observation: validated.observation,
-        academicAssessment: validated.academicAssessment,
-        familySupport: validated.familySupport,
-        characterNotes: validated.characterNotes,
-        otherNotes: validated.otherNotes || "",
-        recommendation: validated.recommendation,
-        isLocked: true,
-      }
+    if (candidate.notes.some((n) => n.isLocked)) {
+      return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })
+    }
+
+    // Catatan + status dalam satu transaksi. Batas unik candidateId di database menolak catatan ganda
+    // jika dua permintaan masuk bersamaan.
+    const note = await prisma.$transaction(async (tx) => {
+      const created = await tx.interviewerNote.create({
+        data: {
+          candidateId: validated.candidateId,
+          interviewerName: session.user.name || session.user.email || "",
+          interviewerEmail: session.user.email || "",
+          observation: validated.observation,
+          academicAssessment: validated.academicAssessment,
+          familySupport: validated.familySupport,
+          characterNotes: validated.characterNotes,
+          otherNotes: validated.otherNotes || "",
+          recommendation: validated.recommendation,
+          isLocked: true,
+        },
+      })
+      await tx.candidate.update({ where: { id: validated.candidateId }, data: { status: "REVIEWED" } })
+      return created
     })
 
-    // Update candidate status
-    await prisma.candidate.update({
-      where: { id: validated.candidateId },
-      data: { status: "REVIEWED" }
+    await logActivity({
+      action: "CATATAN_KIRIM",
+      targetType: "siswa",
+      targetId: candidate.id,
+      targetLabel: candidate.name,
+      detail: `Rekomendasi: ${validated.recommendation}`,
     })
 
     revalidatePath("/interviewer")
@@ -68,10 +85,10 @@ export async function POST(request: Request) {
     return NextResponse.json(note)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validasi gagal", details: error.issues },
-        { status: 422 }
-      )
+      return NextResponse.json({ error: "Validasi gagal", details: error.issues }, { status: 422 })
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })
     }
     console.error("[POST /api/notes]", error)
     return NextResponse.json({ error: "Gagal menyimpan catatan" }, { status: 500 })

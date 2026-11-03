@@ -20,9 +20,5 @@ export default async function AdminPage() {
 
   const stats = await getDashboardStats(levelFilter)
 
-  return (
-    <div className="space-y-6">
-      <AdminOverviewClient stats={stats} role={session.user.role} />
-    </div>
-  )
+  return <AdminOverviewClient stats={stats} role={session.user.role} />
 }

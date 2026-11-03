@@ -1,18 +1,20 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import PublicFormClient from "./form-client"
+import { verifyCandidateToken } from "@/lib/candidate-auth"
+import { CandidateVerificationGate } from "@/components/candidate-verification-gate"
 
 export const dynamic = "force-dynamic"
 
 interface Props {
-  params: { id: string }
-  searchParams: { role?: string }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ role?: string; token?: string }>
 }
 
 export default async function PublicFormPage({ params, searchParams }: Props) {
 
   const { id } = await params
-  const { role } = await searchParams
+  const { role, token } = await searchParams
 
   // 1. Ambil data kandidat
   const candidate = await prisma.candidate.findUnique({
@@ -20,6 +22,19 @@ export default async function PublicFormPage({ params, searchParams }: Props) {
   })
 
   if (!candidate) return notFound()
+
+  // Verifikasi akses menggunakan token QR
+  const isVerified = verifyCandidateToken(id, token)
+  if (!isVerified) {
+    return (
+      <CandidateVerificationGate
+        candidateId={id}
+        candidateName={candidate.name}
+        targetType="form"
+        role={role}
+      />
+    )
+  }
 
   const isStudentRole = role === "student" && candidate.level === "SMP"
 
@@ -104,6 +119,7 @@ export default async function PublicFormPage({ params, searchParams }: Props) {
           candidate={candidate as any} 
           questions={questions as any} 
           role={isStudentRole ? "student" : "parent"}
+          token={token}
         />
       </div>
     </div>

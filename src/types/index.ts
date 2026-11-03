@@ -1,15 +1,3 @@
-import type { DefaultSession } from "next-auth"
-
-// Extend NextAuth session types
-declare module "next-auth" {
-  interface Session {
-    user: {
-      role: "admin" | "interviewer" | "unauthorized"
-      interviewerName?: string
-    } & DefaultSession["user"]
-  }
-}
-
 export interface Candidate {
   id: string
   name: string

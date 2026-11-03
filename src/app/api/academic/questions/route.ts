@@ -1,20 +1,18 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
-export async function GET(req: Request) {
+// Endpoint publik untuk siswa. JANGAN pernah menyertakan correctAnswer di sini.
+export async function GET() {
   try {
-    const questions = await (prisma as any).academicQuestion.findMany({
-      orderBy: { order: 'asc' }
+    const questions = await prisma.academicQuestion.findMany({
+      orderBy: { order: "asc" },
+      select: { id: true, text: true, subject: true, imageUrl: true, options: true, order: true },
     })
-    
-    // Parse options back to arrays
-    const formatted = questions.map((q: any) => ({
-      ...q,
-      options: JSON.parse(q.options)
-    }))
-    
+
+    const formatted = questions.map((q) => ({ ...q, options: JSON.parse(q.options) as string[] }))
+
     return NextResponse.json(formatted)
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch questions" }, { status: 500 })
   }
 }

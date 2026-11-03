@@ -1,58 +1,53 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { GraduationCap } from "lucide-react"
+
+type Unit = "sd" | "smp" | null
 
 export function BrandLogo({ role }: { role: string }) {
   const pathname = usePathname()
-  
-  const currentPath = pathname.toLowerCase()
+
+  const segments = pathname.toLowerCase().split("/").filter(Boolean)
   const currentRole = role?.toLowerCase() || ""
 
-  const isSD = currentPath.includes("sd") || currentRole.includes("sd")
-  const isSMP = currentPath.includes("smp") || currentRole.includes("smp")
+  let unit: Unit = null
+  if (segments.includes("sd") || currentRole.includes("sd")) unit = "sd"
+  else if (segments.includes("smp") || currentRole.includes("smp")) unit = "smp"
 
-  if (isSD) {
+  if (unit) {
+    const isSD = unit === "sd"
     return (
-      <>
-        <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-lg">
-          <img src="/logo-sd.png" alt="Logo SD Al Fakhir" className="w-full h-full object-contain p-1" />
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
+          <img
+            src={isSD ? "/logo-sd.png" : "/logo-smp.png"}
+            alt={isSD ? "Logo SD Al Fakhir" : "Logo SMP Al Fakhir"}
+            className="h-full w-full object-contain p-1"
+          />
         </div>
-        <div className="flex flex-col">
-          <span className="text-[14px] font-black tracking-tight leading-none uppercase text-white">AL FAKHIR</span>
-          <span className="text-[8px] font-bold text-orange-400 tracking-[0.2em] uppercase">Unit SD</span>
+        <div className="flex flex-col leading-tight">
+          <span className="text-sm font-semibold text-white">Al Fakhir</span>
+          <span className={isSD ? "text-xs font-medium text-orange-400" : "text-xs font-medium text-emerald-400"}>
+            Unit {isSD ? "SD" : "SMP"}
+          </span>
         </div>
-      </>
-    )
-  }
-
-  if (isSMP) {
-    return (
-      <>
-        <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-lg">
-          <img src="/logo-smp.png" alt="Logo SMP Al Fakhir" className="w-full h-full object-contain p-1" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-[14px] font-black tracking-tight leading-none uppercase text-white">AL FAKHIR</span>
-          <span className="text-[8px] font-bold text-emerald-400 tracking-[0.2em] uppercase">Unit SMP</span>
-        </div>
-      </>
+      </div>
     )
   }
 
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center -space-x-2">
-        <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-lg relative z-10 border border-white/10">
-          <img src="/logo-sd.png" alt="Logo SD" className="w-full h-full object-contain p-1" />
+        <div className="relative z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white">
+          <img src="/logo-sd.png" alt="Logo SD" className="h-full w-full object-contain p-1" />
         </div>
-        <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-lg relative z-0 border border-white/10">
-          <img src="/logo-smp.png" alt="Logo SMP" className="w-full h-full object-contain p-1" />
+        <div className="relative z-0 flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white">
+          <img src="/logo-smp.png" alt="Logo SMP" className="h-full w-full object-contain p-1" />
         </div>
       </div>
-      <div className="flex flex-col">
-        <span className="text-[13px] font-black tracking-tight leading-none uppercase text-white">AL FAKHIR</span>
-        <span className="text-[8px] font-bold text-slate-400 tracking-[0.2em] uppercase italic mt-0.5">Observation System</span>
+      <div className="flex flex-col leading-tight">
+        <span className="text-sm font-semibold text-white">Al Fakhir</span>
+        <span className="text-xs text-slate-400">Observation System</span>
       </div>
     </div>
   )

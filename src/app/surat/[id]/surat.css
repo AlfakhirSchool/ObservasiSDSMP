@@ -1,0 +1,132 @@
+/* Surat Hasil Observasi & Asesmen PPDB (A4, cetak). Semua kelas berawalan "surat-". */
+.surat-page {
+  --surat-accent: #1a5f66;
+  --surat-ink: #111;
+  --surat-rule: #333;
+  background: #e9ecec;
+  min-height: 100vh;
+  padding: 16px 0 32px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--surat-ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Toolbar (tidak ikut tercetak) */
+.surat-toolbar {
+  max-width: 210mm;
+  margin: 0 auto 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  color: #0f172a;
+}
+.surat-toolbar h1 { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+.surat-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.surat-field label { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #334155; }
+.surat-field input,
+.surat-field select {
+  width: 100%; height: 40px; padding: 0 10px;
+  border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit;
+}
+.surat-field input:focus-visible,
+.surat-field select:focus-visible { outline: 2px solid #10b981; outline-offset: 1px; }
+.surat-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+.surat-btn {
+  min-height: 44px; padding: 0 20px; border: 0; border-radius: 8px;
+  background: var(--surat-accent); color: #fff; font: 600 14px/1 system-ui, sans-serif; cursor: pointer;
+}
+.surat-btn:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
+.surat-warn { font-size: 13px; color: #b45309; }
+.surat-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.surat-btn-secondary { background: #fff; color: var(--surat-accent); border: 1px solid var(--surat-accent); }
+.surat-btn-ghost {
+  min-height: 36px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+  background: #fff; color: #334155; font: 600 13px/1 system-ui, sans-serif; cursor: pointer;
+}
+.surat-btn-ghost:hover { background: #f1f5f9; }
+.surat-btn-ghost:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
+.surat-hint { margin: -6px 0 12px; font-size: 13px; color: #475569; }
+.surat-field textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+  font: inherit; line-height: 1.5; resize: vertical;
+}
+.surat-field textarea:focus-visible { outline: 2px solid #10b981; outline-offset: 1px; }
+.surat-field textarea:disabled { background: #f1f5f9; }
+.surat-nilai { margin: 14px 0 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; display: grid; gap: 8px; }
+.surat-nilai legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: #334155; }
+.surat-nilai-row { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; align-items: center; }
+.surat-nilai-row input,
+.surat-nilai > input {
+  width: 100%; height: 38px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit;
+}
+.surat-nilai .surat-btn-ghost:last-child { justify-self: start; }
+
+/* Lembar A4 */
+.surat-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 44px 76px 40px;
+  background: #fff;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.surat-kop { display: flex; align-items: center; gap: 16px; }
+.surat-kop img { width: 84px; height: 88px; object-fit: contain; flex-shrink: 0; }
+.surat-kop-text { flex: 1; text-align: center; padding-right: 100px; }
+.surat-kop-yayasan { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; line-height: 1.4; }
+.surat-kop-nama { font-size: 23px; font-weight: 700; letter-spacing: 0.03em; line-height: 1.25; color: var(--surat-accent); }
+.surat-kop-alamat { font-size: 11.5px; line-height: 1.45; }
+.surat-kop-alamat:first-of-type { margin-top: 2px; }
+.surat-garis-kop { margin-top: 12px; border-top: 3px solid var(--surat-accent); border-bottom: 1px solid var(--surat-accent); height: 5px; }
+
+.surat-meta-row { margin-top: 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.surat-kv { display: grid; grid-template-columns: var(--label, 76px) 14px 1fr; }
+.surat-kv.identitas { --label: 170px; margin-top: 8px; padding-left: 28px; }
+.surat-tebal { font-weight: 700; }
+.surat-miring { font-style: italic; }
+.surat-sheet p { margin: 8px 0 0; text-align: justify; }
+.surat-blok { margin-top: 22px; }
+.surat-salam { margin-top: 18px; font-style: italic; }
+
+.surat-sheet table { margin-top: 14px; width: 100%; border-collapse: collapse; line-height: 1.4; }
+.surat-sheet th,
+.surat-sheet td { border: 1px solid var(--surat-rule); padding: 5px 8px; text-align: center; }
+.surat-sheet th { background: #ececec; padding: 7px 8px; font-weight: 700; }
+.surat-sheet th.kiri,
+.surat-sheet td.kiri { text-align: left; padding-left: 12px; }
+.surat-col-no { width: 46px; }
+.surat-col-nilai { width: 96px; }
+.surat-sheet tr.ringkas td { background: #f5f5f5; font-weight: 700; padding: 6px 8px; }
+.surat-keterangan { margin-top: 6px; font-size: 12px; line-height: 1.5; }
+
+.surat-status {
+  margin-top: 8px; align-self: center; min-height: 2em;
+  padding: 3px 44px;
+  border-top: 1.5px solid var(--surat-ink); border-bottom: 1.5px solid var(--surat-ink);
+  font-size: 18px; font-weight: 700; letter-spacing: 0.35em; line-height: 1.5;
+}
+
+.surat-ttd { margin-top: 14px; align-self: flex-end; width: 270px; }
+.surat-ttd-ruang { height: 56px; }
+.surat-ttd-nama { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+
+@page { size: A4; margin: 0; }
+@media print {
+  .surat-page { background: #fff; padding: 0; min-height: 0; }
+  .surat-toolbar { display: none; }
+  .surat-sheet { margin: 0; box-shadow: none; width: 210mm; height: 297mm; min-height: 0; }
+}
+@media screen and (max-width: 840px) {
+  .surat-sheet { width: 100%; min-height: 0; padding: 28px 16px; box-shadow: none; }
+  .surat-kop-text { padding-right: 0; }
+  .surat-meta-row { flex-direction: column; gap: 8px; }
+  .surat-kv.identitas { --label: 140px; padding-left: 0; }
+}

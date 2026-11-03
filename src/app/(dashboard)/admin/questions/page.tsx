@@ -18,12 +18,8 @@ export default async function AdminQuestionsPage() {
 
   const questions = questionsRaw.map(q => ({
     ...q,
-    options: q.options ? JSON.parse(q.options) : []
+    options: q.options ? (JSON.parse(q.options) as string[]) : []
   }))
 
-  return (
-    <div className="max-w-6xl mx-auto">
-      <AdminQuestionsClient initialQuestions={questions as any} />
-    </div>
-  )
+  return <AdminQuestionsClient initialQuestions={questions} />
 }

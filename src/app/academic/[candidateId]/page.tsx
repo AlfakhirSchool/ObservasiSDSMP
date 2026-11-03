@@ -2,11 +2,19 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import AcademicClient from "./AcademicClient"
 import { CheckCircle2 } from "lucide-react"
+import { verifyCandidateToken } from "@/lib/candidate-auth"
+import { CandidateVerificationGate } from "@/components/candidate-verification-gate"
 
 export const dynamic = "force-dynamic"
 
-export default async function AcademicPage({ params }: { params: { candidateId: string } }) {
+interface Props {
+  params: Promise<{ candidateId: string }>
+  searchParams: Promise<{ token?: string }>
+}
+
+export default async function AcademicPage({ params, searchParams }: Props) {
   const { candidateId } = await params
+  const { token } = await searchParams
   
   const candidate = await (prisma as any).candidate.findUnique({
     where: { id: candidateId },
@@ -24,6 +32,18 @@ export default async function AcademicPage({ params }: { params: { candidateId: 
           <p className="text-slate-500">Ujian akademik ini hanya tersedia untuk jenjang SMP.</p>
         </div>
       </div>
+    )
+  }
+
+  // Verifikasi akses via token QR atau nomor HP
+  const isVerified = verifyCandidateToken(candidateId, token)
+  if (!isVerified) {
+    return (
+      <CandidateVerificationGate
+        candidateId={candidateId}
+        candidateName={candidate.name}
+        targetType="academic"
+      />
     )
   }
 
@@ -61,5 +81,5 @@ export default async function AcademicPage({ params }: { params: { candidateId: 
     )
   }
 
-  return <AcademicClient candidate={candidate} />
+  return <AcademicClient candidate={candidate} token={token} />
 }

@@ -2,16 +2,18 @@
 
 import { useState, useMemo } from "react"
 import { InterviewerNote } from "@/types"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select } from "@/components/ui/select"
+import { PageHeader } from "@/components/layout/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Download,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
+  BarChart3,
 } from "lucide-react"
 import {
   BarChart,
@@ -23,18 +25,34 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
-import { formatDate } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 import { ITEMS_PER_PAGE } from "@/lib/constants"
 
 interface Props {
   notes: InterviewerNote[]
 }
 
-const REC_COLORS: Record<string, string> = {
-  Terima: "#10b981",
-  Pertimbangkan: "#f59e0b",
-  Tolak: "#f43f5e",
+type Recommendation = InterviewerNote["recommendation"]
+
+const REC_META: Record<Recommendation, { color: string; pill: string; text: string }> = {
+  Terima: {
+    color: "#10B981",
+    pill: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    text: "text-emerald-600",
+  },
+  Pertimbangkan: {
+    color: "#F59E0B",
+    pill: "bg-amber-50 text-amber-700 ring-amber-200",
+    text: "text-amber-600",
+  },
+  Tolak: {
+    color: "#F43F5E",
+    pill: "bg-rose-50 text-rose-700 ring-rose-200",
+    text: "text-rose-600",
+  },
 }
+
+const REC_ORDER: Recommendation[] = ["Terima", "Pertimbangkan", "Tolak"]
 
 export default function AdminNotesClient({ notes }: Props) {
   const [interviewerFilter, setInterviewerFilter] = useState("")
@@ -69,7 +87,7 @@ export default function AdminNotesClient({ notes }: Props) {
       },
       {} as Record<string, number>
     )
-    return ["Terima", "Pertimbangkan", "Tolak"].map((r) => ({
+    return REC_ORDER.map((r) => ({
       name: r,
       value: counts[r] || 0,
     }))
@@ -79,198 +97,226 @@ export default function AdminNotesClient({ notes }: Props) {
     window.open(`/api/admin/export?format=${format}&type=notes`, "_blank")
   }
 
+  const resetFilters = () => {
+    setInterviewerFilter("")
+    setRecFilter("")
+    setPage(1)
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Catatan Observasi</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {notes.length} catatan telah dikirim
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport("xlsx")}>
-            <Download className="h-4 w-4" />
-            Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
-            <Download className="h-4 w-4" />
-            CSV
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Catatan Observasi"
+        description={`${notes.length} catatan telah dikirim`}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => handleExport("xlsx")}>
+              <Download className="h-4 w-4" />
+              Excel
+            </Button>
+            <Button variant="outline" onClick={() => handleExport("csv")}>
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
+          </>
+        }
+      />
 
-      {/* Summary chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Ringkasan Rekomendasi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={recStats} layout="vertical" margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis type="number" tick={{ fontSize: 12, fill: "#94a3b8" }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 12, fill: "#64748b" }}
-                  width={90}
-                />
-                <Tooltip contentStyle={{ borderRadius: "10px", fontSize: "13px" }} />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                  {recStats.map((entry) => (
-                    <Cell key={entry.name} fill={REC_COLORS[entry.name]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="flex justify-around mt-2">
-              {recStats.map((r) => (
-                <div key={r.name} className="text-center">
-                  <p className="text-lg font-bold" style={{ color: REC_COLORS[r.name] }}>
-                    {r.value}
-                  </p>
-                  <p className="text-xs text-slate-500">{r.name}</p>
-                </div>
-              ))}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section className="min-w-0 self-start rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-1">
+          <h2 className="text-base font-semibold text-slate-900">Ringkasan rekomendasi</h2>
+          <p className="text-sm text-slate-500">Dari seluruh catatan yang masuk</p>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {recStats.map((r) => (
+              <div key={r.name} className="rounded-xl bg-slate-50 px-3 py-3 text-center">
+                <p className={cn("text-2xl font-bold tabular-nums", REC_META[r.name].text)}>{r.value}</p>
+                <p className="mt-1 text-xs font-medium text-slate-600">{r.name}</p>
+              </div>
+            ))}
+          </div>
+
+          {notes.length > 0 ? (
+            <div className="mt-4 h-44 w-full">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={recStats} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    tick={{ fontSize: 12, fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: "#475569" }}
+                    width={104}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#F1F5F9" }}
+                    contentStyle={{ borderRadius: 12, border: "1px solid #E2E8F0", fontSize: 13 }}
+                  />
+                  <Bar dataKey="value" name="Jumlah" radius={[0, 6, 6, 0]} maxBarSize={24}>
+                    {recStats.map((entry) => (
+                      <Cell key={entry.name} fill={REC_META[entry.name].color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <EmptyState
+              icon={BarChart3}
+              title="Belum ada data rekomendasi"
+              description="Grafik muncul setelah catatan pertama dikirim."
+              className="py-10"
+            />
+          )}
+        </section>
 
-        {/* Notes table */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <CardTitle>Daftar Catatan</CardTitle>
-              <div className="flex gap-2 ml-auto">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base font-semibold text-slate-900">Daftar catatan</h2>
+            <div className="flex flex-wrap gap-2">
+              <div className="min-w-48 flex-1 sm:flex-none">
                 <Select
+                  aria-label="Filter pewawancara"
                   options={interviewers}
                   value={interviewerFilter}
-                  onChange={(e) => { setInterviewerFilter(e.target.value); setPage(1) }}
-                  className="w-44"
+                  onChange={(e) => {
+                    setInterviewerFilter(e.target.value)
+                    setPage(1)
+                  }}
                 />
+              </div>
+              <div className="min-w-48 flex-1 sm:flex-none">
                 <Select
+                  aria-label="Filter rekomendasi"
                   options={[
                     { value: "", label: "Semua Rekomendasi" },
-                    { value: "Terima", label: "Terima" },
-                    { value: "Pertimbangkan", label: "Pertimbangkan" },
-                    { value: "Tolak", label: "Tolak" },
+                    ...REC_ORDER.map((r) => ({ value: r, label: r })),
                   ]}
                   value={recFilter}
-                  onChange={(e) => { setRecFilter(e.target.value); setPage(1) }}
-                  className="w-44"
+                  onChange={(e) => {
+                    setRecFilter(e.target.value)
+                    setPage(1)
+                  }}
                 />
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-100">
-              {paginated.length === 0 ? (
-                <p className="text-center py-10 text-slate-400 text-sm">
-                  Tidak ada catatan ditemukan
-                </p>
-              ) : (
-                paginated.map((note) => {
-                  const isExpanded = expandedId === note.noteId
-                  return (
-                    <div key={note.noteId} className="px-5 py-4">
-                      <div
-                        className="flex items-center gap-3 cursor-pointer"
-                        onClick={() =>
-                          setExpandedId(isExpanded ? null : note.noteId)
-                        }
-                      >
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900 text-sm">
-                            {note.candidateName || note.candidateId}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Oleh: {note.interviewerName} ·{" "}
-                            {formatDate(note.submittedAt)}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            note.recommendation === "Terima"
-                              ? "success"
-                              : note.recommendation === "Tolak"
-                              ? "danger"
-                              : "warning"
-                          }
-                        >
-                          {note.recommendation}
-                        </Badge>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+          </div>
+
+          {notes.length === 0 ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Belum ada catatan observasi"
+              description="Catatan dari pewawancara akan tampil di sini."
+            />
+          ) : paginated.length === 0 ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Tidak ada catatan ditemukan"
+              description="Tidak ada catatan yang cocok dengan filter yang dipilih."
+              action={
+                <Button variant="outline" onClick={resetFilters}>
+                  Reset filter
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {paginated.map((note) => {
+                const isExpanded = expandedId === note.noteId
+                const pill = REC_META[note.recommendation]?.pill ?? "bg-slate-50 text-slate-600 ring-slate-200"
+                return (
+                  <li key={note.noteId}>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedId(isExpanded ? null : note.noteId)}
+                      className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/40"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {note.candidateName || note.candidateId}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          Oleh: {note.interviewerName} · {formatDate(note.submittedAt)}
+                        </p>
+                      </div>
+                      <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset", pill)}>
+                        {note.recommendation}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                      )}
+                    </button>
+                    {isExpanded && (
+                      <div className="mx-5 mb-4 space-y-3 rounded-xl bg-slate-50 p-4">
+                        {[
+                          { label: "Observasi Umum", value: note.observation },
+                          { label: "Kesiapan Akademik", value: note.academicAssessment },
+                          { label: "Dukungan Keluarga", value: note.familySupport },
+                          { label: "Karakter & Sikap", value: note.characterNotes },
+                        ].map(({ label, value }) => (
+                          <div key={label}>
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                            <p className="text-sm leading-relaxed text-slate-700">{value}</p>
+                          </div>
+                        ))}
+                        {note.aiSummary && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Ringkasan AI</p>
+                            <p className="line-clamp-3 text-sm leading-relaxed text-slate-500">{note.aiSummary}</p>
+                          </div>
                         )}
                       </div>
-                      {isExpanded && (
-                        <div className="mt-4 space-y-3 bg-slate-50 rounded-xl p-4">
-                          {[
-                            { label: "Observasi Umum", value: note.observation },
-                            { label: "Kesiapan Akademik", value: note.academicAssessment },
-                            { label: "Dukungan Keluarga", value: note.familySupport },
-                            { label: "Karakter & Sikap", value: note.characterNotes },
-                          ].map(({ label, value }) => (
-                            <div key={label}>
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                {label}
-                              </p>
-                              <p className="text-sm text-slate-700 leading-relaxed">
-                                {value}
-                              </p>
-                            </div>
-                          ))}
-                          {note.aiSummary && (
-                            <div>
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                Ringkasan AI
-                              </p>
-                              <p className="text-xs text-slate-500 italic leading-relaxed line-clamp-3">
-                                {note.aiSummary}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
-                <p className="text-xs text-slate-500">
-                  {(page - 1) * ITEMS_PER_PAGE + 1}–
-                  {Math.min(page * ITEMS_PER_PAGE, filtered.length)} dari{" "}
-                  {filtered.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <span className="text-sm font-medium text-slate-700">
-                    {page} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+              <p className="text-sm text-slate-500 tabular-nums">
+                {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} dari {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  aria-label="Halaman sebelumnya"
+                  title="Halaman sebelumnya"
+                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-medium text-slate-700 tabular-nums">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  aria-label="Halaman berikutnya"
+                  title="Halaman berikutnya"
+                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:opacity-40"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { logActivity } from "@/lib/activity-log"
 
 const questions = [
   // --- WAWANCARA ORANG TUA (SMP) ---
@@ -57,7 +59,12 @@ const questions = [
   { text: "Sebutkan satu kekurangan yang ingin Ananda perbaiki!", type: "text", category: "Siswa-Akademik", order: 114 },
 ]
 
-export async function GET() {
+export async function POST() {
+  // Menghapus soal SMP non-sistem beserta jawabannya (cascade), jadi hanya admin dan hanya lewat POST.
+  const session = await auth()
+  if (!session?.user?.role?.startsWith("admin")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
   try {
     console.log("Seeding questions via API...")
     
@@ -83,6 +90,12 @@ export async function GET() {
       })
     }
     
+    await logActivity({
+      action: "SOAL_SINKRON",
+      targetType: "soal",
+      detail: `Sinkronisasi ulang ${questions.length} soal observasi SMP`,
+    })
+
     return NextResponse.json({ success: true, count: questions.length })
   } catch (error) {
     console.error("Seed error:", error)
