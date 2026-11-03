@@ -1,8 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import PublicFormClient from "./form-client"
-import { verifyCandidateToken } from "@/lib/candidate-auth"
-import { CandidateVerificationGate } from "@/components/candidate-verification-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -22,19 +20,6 @@ export default async function PublicFormPage({ params, searchParams }: Props) {
   })
 
   if (!candidate) return notFound()
-
-  // Verifikasi akses menggunakan token QR
-  const isVerified = verifyCandidateToken(id, token)
-  if (!isVerified) {
-    return (
-      <CandidateVerificationGate
-        candidateId={id}
-        candidateName={candidate.name}
-        targetType="form"
-        role={role}
-      />
-    )
-  }
 
   const isStudentRole = role === "student" && candidate.level === "SMP"
 

@@ -25,7 +25,8 @@ export default async function AcademicPortalPage() {
     where: {
       level: "SMP",
       academicYear: activeYear,
-      academicTestResult: null
+      academicTestResult: null,
+      status: { notIn: ["REVIEWED", "COMPLETED"] }
     },
     orderBy: {
       name: "asc"

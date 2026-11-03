@@ -12,6 +12,7 @@ interface Candidate {
   name: string
   level: string
   room: string | null
+  status?: string
   formAnswers?: {
     question: {
       category: string
@@ -48,13 +49,30 @@ export default function FormPortalClient({ candidates }: Props) {
     return selectedCandidate?.formAnswers?.some(a => a.question.category === "SISWA")
   }, [selectedCandidate])
 
+  const isCandidateFullySubmitted = (c: Candidate) => {
+    const parentDone = c.formAnswers?.some(a => a.question.category === "ORANG TUA")
+    const studentDone = c.formAnswers?.some(a => a.question.category === "SISWA")
+    if (c.level === "SD") {
+      return Boolean(parentDone || c.status === "RESPONSE_RECEIVED" || c.status === "REVIEWED" || c.status === "COMPLETED")
+    } else {
+      return Boolean((parentDone && studentDone) || c.status === "REVIEWED" || c.status === "COMPLETED")
+    }
+  }
+
   const filteredCandidates = useMemo(() => {
-    return candidates.filter(c => c.level === level && c.room === room)
+    return candidates
+      .filter(c => !isCandidateFullySubmitted(c))
+      .filter(c => c.level === level && c.room === room)
   }, [candidates, level, room])
 
   const availableRooms = useMemo(() => {
     if (!level) return []
-    const activeRooms = new Set(candidates.filter(c => c.level === level && c.room).map(c => c.room))
+    const activeRooms = new Set(
+      candidates
+        .filter(c => !isCandidateFullySubmitted(c))
+        .filter(c => c.level === level && c.room)
+        .map(c => c.room)
+    )
     return ROOMS.filter(r => activeRooms.has(r))
   }, [candidates, level])
 

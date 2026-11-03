@@ -31,16 +31,6 @@ export async function POST(req: Request) {
     })
     if (!candidate) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 })
 
-    // Verifikasi token QR atau kecocokan no. HP
-    const hasValidToken = verifyCandidateToken(candidateId, token)
-    const matchesPhone = verifyParentPhoneMatch(candidate.parentPhone, phone)
-    if (!hasValidToken && !matchesPhone) {
-      return NextResponse.json(
-        { error: "Akses tidak terverifikasi. Masukkan nomor WhatsApp/HP orang tua yang terdaftar." },
-        { status: 403 }
-      )
-    }
-
     // Tes hanya sekali: hasil pertama tidak boleh ditimpa.
     if (await prisma.academicTestResult.findUnique({ where: { candidateId } })) {
       return NextResponse.json({ success: true, message: "Already submitted" })

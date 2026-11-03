@@ -1,8 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
 /* Surat Hasil Observasi & Asesmen PPDB (A4, cetak). Semua kelas berawalan "surat-". */
 .surat-page {
   --surat-accent: #1a5f66;
   --surat-ink: #111;
   --surat-rule: #333;
+  font-family: "Noto Serif", Georgia, Cambria, "Times New Roman", Times, serif;
   background: #e9ecec;
   min-height: 100vh;
   padding: 16px 0 32px;

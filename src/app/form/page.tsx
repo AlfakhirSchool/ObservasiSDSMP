@@ -14,7 +14,7 @@ export default async function FormPortalPage() {
 
   const candidates = await prisma.candidate.findMany({
     where: {
-      status: { in: ["PENDING", "RESPONSE_RECEIVED"] },
+      status: { notIn: ["REVIEWED", "COMPLETED"] },
       academicYear: activeYear
     },
     select: {
@@ -22,6 +22,7 @@ export default async function FormPortalPage() {
       name: true,
       level: true,
       room: true,
+      status: true,
       formAnswers: {
         select: {
           question: {

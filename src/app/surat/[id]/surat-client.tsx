@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Noto_Serif } from "next/font/google"
 import toast from "react-hot-toast"
 import {
   SURAT_STATUS_OPTIONS,
@@ -18,8 +17,6 @@ import {
 } from "@/lib/surat"
 import { buildSuratPdf, loadSuratAssets, suratFileName } from "@/lib/surat-pdf"
 import "./surat.css"
-
-const notoSerif = Noto_Serif({ subsets: ["latin"], weight: ["400", "600", "700"], style: ["normal", "italic"] })
 
 export type SuratDraft = Omit<SuratData, "status" | "penutup"> & { status: SuratStatus | "" }
 
@@ -73,7 +70,7 @@ export default function SuratClient({ initial }: SuratClientProps) {
 
   return (
     // Warna aksen kop mengikuti unit lewat custom property CSS (tidak ada tipe bawaannya di CSSProperties).
-    <div className={`surat-page ${notoSerif.className}`} style={{ "--surat-accent": unit.aksen } as React.CSSProperties}>
+    <div className="surat-page" style={{ "--surat-accent": unit.aksen } as React.CSSProperties}>
       <div className="surat-toolbar">
         <h1>Surat Hasil Observasi dan Asesmen — {draft.nama}</h1>
         <p className="surat-hint">

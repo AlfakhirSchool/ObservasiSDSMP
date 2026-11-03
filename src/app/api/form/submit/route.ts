@@ -41,16 +41,6 @@ export async function POST(req: Request) {
     })
     if (!existing) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 })
 
-    // Verifikasi kepemilikan/izin akses: token URL atau kecocokan no. HP
-    const hasValidToken = verifyCandidateToken(candidateId, token)
-    const matchesPhone = verifyParentPhoneMatch(existing.parentPhone, parentPhone)
-    if (!hasValidToken && !matchesPhone) {
-      return NextResponse.json(
-        { error: "Akses tidak terverifikasi. Masukkan nomor WhatsApp/HP orang tua yang terdaftar." },
-        { status: 403 }
-      )
-    }
-
     // Setelah observasi dikunci, jawaban formulir tidak boleh diubah lagi.
     if (existing.notes.some((n) => n.isLocked)) {
       return NextResponse.json({ error: "Observasi sudah selesai, jawaban tidak dapat diubah" }, { status: 409 })
