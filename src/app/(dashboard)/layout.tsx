@@ -48,11 +48,10 @@ export default async function DashboardLayout({
               <div
                 role="group"
                 aria-label="Pewawancara"
-                className="flex items-center gap-1 rounded-xl border border-white/10 p-1"
+                className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
               >
-                <span className="sr-only">Pewawancara</span>
                 {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
-                  <NavLink key={href} href={href} className="py-1.5">
+                  <NavLink key={href} href={href} className="px-2.5 py-1 text-xs">
                     <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
                   </NavLink>
                 ))}
