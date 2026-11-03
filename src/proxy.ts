@@ -20,19 +20,19 @@ export default auth((req) => {
 
   // Not authenticated
   if (!session) {
-    return NextResponse.redirect(new URL("/login", req.url))
+    return NextResponse.redirect(new URL("/login", req.nextUrl))
   }
 
   const role = session.user?.role
 
   // Unauthorized role
   if (role === "unauthorized") {
-    return NextResponse.redirect(new URL("/login?error=unauthorized", req.url))
+    return NextResponse.redirect(new URL("/login?error=unauthorized", req.nextUrl))
   }
 
   // Admin-only routes
-  if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL("/interviewer", req.url))
+  if (pathname.startsWith("/admin") && !role?.startsWith("admin")) {
+    return NextResponse.redirect(new URL("/interviewer", req.nextUrl))
   }
 
   return NextResponse.next()

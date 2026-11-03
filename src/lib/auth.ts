@@ -23,6 +23,7 @@ const MAX_FAILS_PER_USER = 5
 const MAX_FAILS_PER_IP = 20
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   providers: [
     Credentials({
