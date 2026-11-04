@@ -14,7 +14,10 @@ export const metadata: Metadata = {
     "Sistem Dashboard Observasi dan Wawancara Penerimaan Siswa Baru SD/SMP Islam Modern Al Fakhir",
   keywords: ["Al Fakhir", "observasi", "wawancara", "penerimaan siswa", "PPDB"],
   icons: {
-    icon: "/data.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/logo-alfakhir.png", type: "image/png", sizes: "512x512" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 }
