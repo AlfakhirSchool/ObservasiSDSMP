@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { ClipboardList } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { RekapFormClient } from "@/components/rekap-form-client"
 import { RekapSdClient } from "@/components/rekap-sd-client"
@@ -35,11 +37,13 @@ interface Props {
   /** Nama pewawancara yang sedang login; kosong untuk admin. */
   ownerName?: string
   detailBase: string
+  /** Jenjang yang dibuka pertama kali (mis. jenjang tempat pewawancara paling banyak punya siswa). */
+  initialJenjang?: RekapJenjang
 }
 
-export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase }: Props) {
+export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD" }: Props) {
   const router = useRouter()
-  const [jenjang, setJenjang] = useState<RekapJenjang>("SD")
+  const [jenjang, setJenjang] = useState<RekapJenjang>(initialJenjang)
   const [sumber, setSumber] = useState<Sumber>("orangtua")
 
   // Guru mengisi sepanjang hari; segarkan data berkala (berhenti saat tab tersembunyi).
@@ -55,6 +59,23 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
       <PageHeader
         title="Rekap Hasil"
         description="Hasil semua siswa dalam bentuk tabel seperti Excel: satu baris per nama, satu kolom per pertanyaan atau indikator."
+        actions={
+          ownerName ? (
+            <>
+              <span className="text-sm font-medium text-slate-500">Isi catatan observasi:</span>
+              {(["SD", "SMP"] as const).map((j) => (
+                <Link
+                  key={j}
+                  href={`/interviewer/${j.toLowerCase()}`}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-emerald-400 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                >
+                  <ClipboardList size={16} aria-hidden="true" />
+                  Unit {j}
+                </Link>
+              ))}
+            </>
+          ) : undefined
+        }
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

@@ -22,6 +22,12 @@ export function cocokStatus(terisi: number, total: number, status: StatusFilter)
   return true
 }
 
+/** Siswa milik pewawancara yang sedang login dipindah ke atas; urutan lainnya tetap (sort stabil). */
+export function milikSayaDulu<T extends { guru: string }>(rows: T[], ownerName: string | undefined): T[] {
+  if (!ownerName) return rows
+  return [...rows].sort((a, b) => Number(b.guru === ownerName) - Number(a.guru === ownerName))
+}
+
 const CONTROL =
   "h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40"
 

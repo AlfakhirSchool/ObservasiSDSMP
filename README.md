@@ -44,10 +44,10 @@ Aplikasi web untuk mengelola proses PPDB dari pendaftaran sampai surat hasil: or
 - **Raport PDF**: unduh satuan atau massal (zip), dikunci dengan NIM siswa.
 
 **Pewawancara**
-- Hanya melihat siswa yang ditugaskan kepadanya.
+- Mengisi catatan dan penilaian hanya untuk siswa yang ditugaskan kepadanya.
 - Mengisi catatan observasi. Setelah dikirim, catatan terkunci.
 - Siswa SD: mengisi dan menyimpan penilaian raport (23 indikator), dapat diedit kembali kapan saja.
-- **Rekap Hasil**: melihat hasil **semua siswa** (bukan hanya miliknya) dalam tabel seperti Excel. Detail siswa guru lain tidak bisa dibuka.
+- **Halaman depan = Rekap Hasil**: setelah login, jawaban orang tua (dan siswa untuk SMP) **semua siswa** langsung tampil sebagai tabel seperti Excel, tanpa membuka siswa satu per satu. Siswa milik sendiri diurutkan paling atas dengan label "Siswa saya", dan jenjang yang dibuka pertama mengikuti tempat guru paling banyak punya siswa. Detail siswa guru lain tidak bisa dibuka. Catatan observasi diisi lewat tombol **Unit SD / Unit SMP** di atas tabel.
 - Ringkasan profil siswa oleh Gemini AI, dibuat saat pewawancara menekan tombolnya di halaman detail siswa.
 
 **Publik (tanpa akun)**
@@ -236,7 +236,7 @@ src/
 │   ├── (auth)/login            Halaman login
 │   ├── (dashboard)/admin/      Ringkasan, siswa, observasi, akademik,
 │   │                           catatan, monitor, pengguna, riwayat
-│   ├── interviewer/            Dashboard dan catatan pewawancara
+│   ├── interviewer/            Halaman depan pewawancara (Rekap Hasil), daftar unit, dan catatan
 │   ├── form/  academic/        Formulir dan tes siswa (publik)
 │   ├── surat/[id]/             Raport PDF
 │   └── api/                    Route handler

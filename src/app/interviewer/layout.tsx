@@ -28,7 +28,7 @@ export default async function InterviewerLayout({
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Link
-              href="/interviewer/rekap"
+              href="/interviewer"
               aria-label="Rekap hasil"
               title="Rekap hasil"
               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 sm:px-3"

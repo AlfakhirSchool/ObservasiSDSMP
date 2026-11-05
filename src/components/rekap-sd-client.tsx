@@ -4,9 +4,9 @@ import { Fragment, useMemo, useState } from "react"
 import Link from "next/link"
 import { CheckCircle2, CircleDashed, Clock, Table2, Users } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
-import { RekapToolbar, cocokStatus, type StatusFilter } from "@/components/rekap-toolbar"
+import { RekapToolbar, cocokStatus, milikSayaDulu, type StatusFilter } from "@/components/rekap-toolbar"
 import { StatCard } from "@/components/ui/stat-card"
-import { PERIOD_LATEST, filterByPeriod, listPeriods, type PeriodFilterValue } from "@/lib/period"
+import { filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue } from "@/lib/period"
 import { SD_ASPEK, SD_JUMLAH_INDIKATOR, aspekPredikat } from "@/lib/raport-sd"
 import type { RekapSdRow } from "@/lib/rekap-sd"
 import { cn } from "@/lib/utils"
@@ -34,7 +34,7 @@ interface Props {
 }
 
 export function RekapSdClient({ rows, ownerName, detailBase }: Props) {
-  const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
+  const [period, setPeriod] = useState<PeriodFilterValue>(() => periodeAwalBerisi(rows, (r) => r.terisi > 0))
   const [guru, setGuru] = useState("")
   const [status, setStatus] = useState<StatusFilter>("semua")
   const [query, setQuery] = useState("")
@@ -46,10 +46,11 @@ export function RekapSdClient({ rows, ownerName, detailBase }: Props) {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return scoped.filter(
+    const cocok = scoped.filter(
       (r) => (!q || r.nama.toLowerCase().includes(q) || r.asalSekolah.toLowerCase().includes(q)) && cocokStatus(r.terisi, SD_JUMLAH_INDIKATOR, status)
     )
-  }, [scoped, query, status])
+    return milikSayaDulu(cocok, ownerName)
+  }, [scoped, query, status, ownerName])
 
   const lengkap = scoped.filter((r) => r.terisi === SD_JUMLAH_INDIKATOR).length
   const belum = scoped.filter((r) => r.terisi === 0).length

@@ -1,64 +1,49 @@
+import { redirect } from "next/navigation"
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ArrowRight } from "lucide-react"
-import { PageHeader } from "@/components/layout/page-header"
+import { auth } from "@/lib/auth"
+import { getRekapForm } from "@/lib/rekap-form"
+import { getRekapSd } from "@/lib/rekap-sd"
+import { RekapHasil } from "@/components/rekap-hasil"
 
-export const metadata: Metadata = {
-  title: "Siswa Saya - Al Fakhir",
-}
+export const metadata: Metadata = { title: "Rekap Hasil - Al Fakhir" }
 
-const UNITS = [
-  {
-    href: "/interviewer/sd",
-    logo: "/logo-sd.png",
-    alt: "Logo SD",
-    name: "Unit SD",
-    description: "Sekolah Dasar",
-    hover: "hover:border-orange-400",
-    cta: "text-orange-600",
-  },
-  {
-    href: "/interviewer/smp",
-    logo: "/logo-smp.png",
-    alt: "Logo SMP",
-    name: "Unit SMP",
-    description: "Sekolah Menengah Pertama",
-    hover: "hover:border-[#0D5C63]",
-    cta: "text-[#0D5C63]",
-  },
-]
+export const dynamic = "force-dynamic"
 
-export default function InterviewerHubPage() {
+/**
+ * Halaman depan pewawancara: jawaban orang tua (dan siswa untuk SMP) semua siswa langsung tampil sebagai tabel,
+ * tanpa harus membuka siswa satu per satu. Catatan observasi diisi lewat tombol Unit SD / Unit SMP di atas tabel.
+ */
+export default async function InterviewerHomePage() {
+  const session = await auth()
+  const user = session?.user
+  if (!user) redirect("/login")
+
+  const isAdmin = user.role.startsWith("admin")
+  if (user.role !== "interviewer" && !isAdmin) redirect("/login")
+  // Nama kosong akan membuat semua tautan terbuka (dianggap admin), jadi tolak.
+  if (!isAdmin && !user.name) redirect("/login")
+
+  // Semua pewawancara boleh melihat hasil semua siswa. Detail siswa tetap hanya bisa dibuka guru pemiliknya
+  // (ownerName), sehingga siswa guru lain tampil sebagai teks biasa, bukan tautan.
+  const [sdRaport, sdOrangTua, smpOrangTua, smpSiswa] = await Promise.all([
+    getRekapSd(),
+    getRekapForm("SD", "ORANG TUA"),
+    getRekapForm("SMP", "ORANG TUA"),
+    getRekapForm("SMP", "SISWA"),
+  ])
+
+  const sdMilikSaya = sdOrangTua.rows.filter((r) => r.guru === user.name).length
+  const smpMilikSaya = smpOrangTua.rows.filter((r) => r.guru === user.name).length
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Pilih Unit Observasi"
-        description="Pilih unit sekolah untuk mulai melakukan observasi dan mencatat hasil wawancara siswa."
-      />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {UNITS.map((unit) => (
-          <Link
-            key={unit.href}
-            href={unit.href}
-            className={`group flex flex-col gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${unit.hover}`}
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
-                <img src={unit.logo} alt={unit.alt} className="h-full w-full object-contain" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-slate-900">{unit.name}</h2>
-                <p className="text-sm text-slate-500">{unit.description}</p>
-              </div>
-            </div>
-            <div className={`flex items-center gap-2 text-sm font-semibold ${unit.cta}`}>
-              Buka dashboard
-              <ArrowRight size={16} aria-hidden="true" className="group-hover:translate-x-0.5" />
-            </div>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <RekapHasil
+      sdRaport={sdRaport}
+      sdOrangTua={sdOrangTua}
+      smpOrangTua={smpOrangTua}
+      smpSiswa={smpSiswa}
+      ownerName={isAdmin ? undefined : (user.name ?? "")}
+      detailBase={isAdmin ? "/admin/candidates" : "/interviewer"}
+      initialJenjang={!isAdmin && smpMilikSaya > sdMilikSaya ? "SMP" : "SD"}
+    />
   )
 }

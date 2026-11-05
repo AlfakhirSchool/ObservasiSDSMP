@@ -52,3 +52,13 @@ export function filterByPeriod<T extends PeriodFields>(items: T[], value: Period
   const key = value === PERIOD_LATEST ? periods[0]?.key : value
   return key ? items.filter((item) => periodKey(item) === key) : items
 }
+
+/**
+ * Periode awal untuk tampilan hasil: "latest" bila periode terbaru sudah punya isian, jika tidak periode terbaru
+ * yang sudah ada isiannya. Mencegah halaman depan tampak kosong tepat setelah periode baru dibuka.
+ */
+export function periodeAwalBerisi<T extends PeriodFields>(items: T[], punyaIsian: (item: T) => boolean): PeriodFilterValue {
+  const periods = listPeriods(items)
+  const terbaruBerisi = periods.find((p) => items.some((item) => periodKey(item) === p.key && punyaIsian(item)))
+  return terbaruBerisi && terbaruBerisi.key !== periods[0]?.key ? terbaruBerisi.key : PERIOD_LATEST
+}

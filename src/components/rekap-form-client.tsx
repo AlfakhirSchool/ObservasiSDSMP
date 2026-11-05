@@ -4,9 +4,9 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { CheckCircle2, CircleDashed, Clock, Table2, Users } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
-import { RekapToolbar, cocokStatus, type StatusFilter } from "@/components/rekap-toolbar"
+import { RekapToolbar, cocokStatus, milikSayaDulu, type StatusFilter } from "@/components/rekap-toolbar"
 import { StatCard } from "@/components/ui/stat-card"
-import { PERIOD_LATEST, filterByPeriod, listPeriods, type PeriodFilterValue } from "@/lib/period"
+import { filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue } from "@/lib/period"
 import type { RekapFormData, RekapFormRow } from "@/lib/rekap-form"
 import { cn } from "@/lib/utils"
 
@@ -25,7 +25,7 @@ interface Props {
 
 export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props) {
   const { questions, rows } = data
-  const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
+  const [period, setPeriod] = useState<PeriodFilterValue>(() => periodeAwalBerisi(rows, (r) => r.terjawab > 0))
   const [guru, setGuru] = useState("")
   const [status, setStatus] = useState<StatusFilter>("semua")
   const [query, setQuery] = useState("")
@@ -38,12 +38,13 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props)
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return scoped.filter(
+    const cocok = scoped.filter(
       (r) =>
         (!q || r.nama.toLowerCase().includes(q) || Object.values(r.jawaban).some((v) => v.toLowerCase().includes(q))) &&
         cocokStatus(r.terjawab, questions.length, status)
     )
-  }, [scoped, query, status, questions.length])
+    return milikSayaDulu(cocok, ownerName)
+  }, [scoped, query, status, questions.length, ownerName])
 
   const lengkap = scoped.filter((r) => r.terjawab === questions.length).length
   const belum = scoped.filter((r) => r.terjawab === 0).length
