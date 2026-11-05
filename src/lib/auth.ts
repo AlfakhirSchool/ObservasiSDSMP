@@ -20,7 +20,9 @@ class TooManyAttempts extends CredentialsSignin {
 
 const LOGIN_WINDOW_SEC = 15 * 60
 const MAX_FAILS_PER_USER = 5
-const MAX_FAILS_PER_IP = 20
+// Per IP sengaja longgar: puluhan guru memakai satu Wi-Fi sekolah (satu IP), dan 20 salah ketik gabungan di hari
+// pertama tidak boleh mengunci semua orang. Perlindungan utama tetap batas per akun (5 gagal / 15 menit).
+const MAX_FAILS_PER_IP = 100
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
