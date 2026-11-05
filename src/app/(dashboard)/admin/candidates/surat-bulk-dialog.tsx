@@ -5,18 +5,16 @@ import toast from "react-hot-toast"
 import JSZip from "jszip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { DEFAULT_KEPALA_SEKOLAH, SURAT_UNIT, suratDariSiswa, type SuratCandidateInput, type SuratData } from "@/lib/surat"
 import {
-  DEFAULT_KEPALA_SEKOLAH,
-  SURAT_UNIT,
-  SURAT_UNIT_AKTIF,
-  isSuratUnit,
-  suratDariSiswa,
-  type SuratBuildResult,
-  type SuratCandidateInput,
-  type SuratData,
-} from "@/lib/surat"
+  SD_DEFAULT_KEPALA_SEKOLAH,
+  SD_DEFAULT_KETUA_PELAKSANA,
+  raportSdDariSiswa,
+  type RaportSdData,
+} from "@/lib/raport-sd"
 import { PERIOD_ALL, PERIOD_LATEST, filterByPeriod, listPeriods, periodKey, type PeriodFilterValue } from "@/lib/period"
 import { buildSuratPdf, loadSuratAssets, suratFileName } from "@/lib/surat-pdf"
+import { buildRaportSdPdf, loadRaportSdAssets, raportSdFileName } from "@/lib/raport-sd-pdf"
 import { updateCandidate } from "@/lib/actions"
 import { logRaportBulkDownload } from "@/lib/raport-actions"
 import { cn } from "@/lib/utils"
@@ -26,9 +24,12 @@ export type SuratBulkCandidate = SuratCandidateInput & { id: string }
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Semua siswa (dipilih periodenya di dalam dialog). */
+  /** Semua siswa (dipilih jenjang dan periodenya di dalam dialog). */
   candidates: SuratBulkCandidate[]
 }
+
+type Unit = "SMP" | "SD"
+const UNITS: Unit[] = ["SMP", "SD"]
 
 const BTN =
   "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
@@ -37,10 +38,24 @@ const BADGE = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-me
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 const displayName = (c: SuratCandidateInput) => c.correctedName || c.name
 
+type Alasan = "tes" | "keputusan" | "nim" | "jenjang" | "indikator"
+type RowResult =
+  | { ok: true; unit: "SMP"; data: SuratData }
+  | { ok: true; unit: "SD"; data: RaportSdData }
+  | { ok: false; reason: Alasan }
+
+const ALASAN_LABEL: Record<Alasan, string> = {
+  nim: "Belum ada NIM",
+  tes: "Belum tes",
+  keputusan: "Belum ada keputusan",
+  indikator: "Isian guru belum lengkap",
+  jenjang: "Jenjang tidak didukung",
+}
+
 interface Row {
   c: SuratBulkCandidate
   nim: string
-  result: SuratBuildResult
+  result: RowResult
   /** Nama sama dengan siswa lain di periode ini dan bukan data terbaru. */
   dupOlder: boolean
   dupName: boolean
@@ -48,11 +63,16 @@ interface Row {
 }
 
 export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
+  const [unit, setUnit] = useState<Unit>("SMP")
   const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
   const [pattern, setPattern] = useState("{no}/B-{unit}/AL-FAKHIR/II/2026")
   const [start, setStart] = useState(1)
   const [tanggal, setTanggal] = useState(() => new Date().toISOString().slice(0, 10))
-  const [kepalaSekolah, setKepalaSekolah] = useState(DEFAULT_KEPALA_SEKOLAH.SMP)
+  const [kepsekByUnit, setKepsekByUnit] = useState<Record<Unit, string>>({
+    SMP: DEFAULT_KEPALA_SEKOLAH.SMP,
+    SD: SD_DEFAULT_KEPALA_SEKOLAH,
+  })
+  const [ketuaPelaksana, setKetuaPelaksana] = useState(SD_DEFAULT_KETUA_PELAKSANA)
   const [busy, setBusy] = useState(false)
   /** NIM yang baru disimpan dari dialog ini (data induk baru ikut ter-update lewat polling). */
   const [nimSaved, setNimSaved] = useState<Record<string, string>>({})
@@ -61,20 +81,38 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
   /** Pilihan manual admin; belum diatur = ikut aturan bawaan (siap & bukan data kembar lama). */
   const [picked, setPicked] = useState<Record<string, boolean>>({})
 
-  const eligible = useMemo(() => candidates.filter((c) => isSuratUnit(c.level)), [candidates])
+  const kepalaSekolah = kepsekByUnit[unit]
+  const isSD = unit === "SD"
+
+  const eligible = useMemo(() => candidates.filter((c) => c.level === unit), [candidates, unit])
   const periods = useMemo(() => listPeriods(eligible), [eligible])
   const scoped = useMemo(() => filterByPeriod(eligible, period, periods), [eligible, period, periods])
 
   const rows: Row[] = useMemo(() => {
     const base = scoped.map((c) => {
       const nim = (nimSaved[c.id] ?? c.nim ?? "").trim()
-      return { c, nim, result: suratDariSiswa({ ...c, nim }, { nomor: "", tanggal, kepalaSekolah }) }
+      const input = { ...c, nim }
+      let result: RowResult
+      if (unit === "SD") {
+        const r = raportSdDariSiswa(input, {
+          nomor: "",
+          tanggal,
+          kepalaSekolah: kepsekByUnit.SD,
+          ketuaPelaksana,
+          jumlahSiswa: scoped.length,
+        })
+        result = r.ok ? { ok: true, unit: "SD", data: r.data } : r
+      } else {
+        const r = suratDariSiswa(input, { nomor: "", tanggal, kepalaSekolah: kepsekByUnit.SMP })
+        result = r.ok ? { ok: true, unit: "SMP", data: r.data } : r
+      }
+      return { c, nim, result }
     })
 
     const byName = new Map<string, typeof base>()
     const byNim = new Map<string, typeof base>()
     for (const r of base) {
-      const nameKey = `${r.c.level}|${norm(displayName(r.c))}`
+      const nameKey = norm(displayName(r.c))
       byName.set(nameKey, [...(byName.get(nameKey) ?? []), r])
       if (r.nim) byNim.set(r.nim.toLowerCase(), [...(byNim.get(r.nim.toLowerCase()) ?? []), r])
     }
@@ -82,7 +120,7 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
 
     return base
       .map((r) => {
-        const sameName = byName.get(`${r.c.level}|${norm(displayName(r.c))}`) ?? []
+        const sameName = byName.get(norm(displayName(r.c))) ?? []
         const newest = sameName.reduce((a, b) => (time(b.c) > time(a.c) ? b : a), sameName[0])
         return {
           ...r,
@@ -92,20 +130,29 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
         }
       })
       .sort((a, b) => new Date(a.c.createdAt).getTime() - new Date(b.c.createdAt).getTime())
-  }, [scoped, nimSaved, tanggal, kepalaSekolah])
+  }, [scoped, nimSaved, tanggal, kepsekByUnit, ketuaPelaksana, unit])
 
   const isChecked = (r: Row) => r.result.ok && (picked[r.c.id] ?? !r.dupOlder)
   const selected = rows.filter(isChecked)
 
+  const countReason = (reason: Alasan) => rows.filter((r) => !r.result.ok && r.result.reason === reason).length
   const missingNim = rows.filter((r) => !r.nim).length
-  const missingTes = rows.filter((r) => !r.result.ok && r.result.reason === "tes").length
-  const missingKeputusan = rows.filter((r) => !r.result.ok && r.result.reason === "keputusan").length
+  const missingTes = countReason("tes")
+  const missingKeputusan = countReason("keputusan")
+  const missingIndikator = countReason("indikator")
   const dupNames = new Set(rows.filter((r) => r.dupName).map((r) => norm(displayName(r.c)))).size
   const dupNims = new Set(rows.filter((r) => r.dupNim).map((r) => r.nim.toLowerCase())).size
 
-  const nomorUntuk = (i: number, unit: string) => pattern.replaceAll("{no}", String(start + i)).replaceAll("{unit}", unit)
-  const patternValid = pattern.includes("{no}")
-  const canRun = selected.length > 0 && patternValid && Number.isInteger(start) && start >= 0 && kepalaSekolah.trim() !== "" && !busy
+  const nomorUntuk = (i: number, unitName: string) => pattern.replaceAll("{no}", String(start + i)).replaceAll("{unit}", unitName)
+  const patternValid = isSD || pattern.includes("{no}")
+  const numberValid = isSD || (Number.isInteger(start) && start >= 0)
+  const canRun =
+    selected.length > 0 &&
+    patternValid &&
+    numberValid &&
+    kepalaSekolah.trim() !== "" &&
+    (!isSD || ketuaPelaksana.trim() !== "") &&
+    !busy
 
   const saveNim = async (r: Row) => {
     const value = (nimDraft[r.c.id] ?? "").trim()
@@ -130,12 +177,20 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
       for (let i = 0; i < selected.length; i++) {
         const r = selected[i]
         if (!r.result.ok) continue
-        const data: SuratData = { ...r.result.data, nomor: nomorUntuk(i, r.result.data.unit), kepalaSekolah }
-        toast.loading(`Membuat PDF ${i + 1}/${selected.length}: ${data.nama}...`, { id: toastId })
-        const doc = await buildSuratPdf(data, await loadSuratAssets(data.unit))
-        let name = suratFileName(data.nama)
+        const nama = r.result.data.nama
+        toast.loading(`Membuat PDF ${i + 1}/${selected.length}: ${nama}...`, { id: toastId })
+        let doc
+        let name: string
+        if (r.result.unit === "SD") {
+          doc = await buildRaportSdPdf({ ...r.result.data, kepalaSekolah, ketuaPelaksana }, await loadRaportSdAssets())
+          name = raportSdFileName(nama)
+        } else {
+          const data: SuratData = { ...r.result.data, nomor: nomorUntuk(i, r.result.data.unit), kepalaSekolah }
+          doc = await buildSuratPdf(data, await loadSuratAssets(data.unit))
+          name = suratFileName(nama)
+        }
         // Nama kembar yang sama-sama dipilih: tambahkan nomor urut supaya tidak saling menimpa di dalam zip.
-        if (usedNames.has(name)) name = name.replace(/\.pdf$/, `_${start + i}.pdf`)
+        if (usedNames.has(name)) name = name.replace(/\.pdf$/, `_${i + 1}.pdf`)
         usedNames.add(name)
         zip.file(name, doc.output("arraybuffer"))
       }
@@ -143,14 +198,14 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Raport_${tanggal}.zip`
+      a.download = `Raport_${unit}_${tanggal}.zip`
       document.body.appendChild(a)
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
       const periodLabel =
         period === PERIOD_ALL ? "Semua gelombang" : (periods.find((p) => p.key === (period === PERIOD_LATEST ? periods[0]?.key : period))?.label ?? "-")
-      void logRaportBulkDownload(selected.length, periodLabel).catch(() => {})
+      void logRaportBulkDownload(selected.length, `${unit} · ${periodLabel}`).catch(() => {})
       toast.success(`${selected.length} raport diunduh`, { id: toastId })
       onOpenChange(false)
     } catch {
@@ -168,10 +223,33 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
         <DialogTitle>Unduh Raport</DialogTitle>
       </DialogHeader>
       <DialogDescription className="px-6 pt-4">
-        Pilih gelombang, periksa NIM dan data kembar, lalu unduh semua raport {SURAT_UNIT_AKTIF.join(" & ")} sekaligus dalam satu zip. Tiap PDF
-        dikunci dengan NIM siswanya.
+        Pilih jenjang dan gelombang, periksa NIM dan data kembar, lalu unduh semua raport sekaligus dalam satu zip. Tiap PDF dikunci dengan NIM
+        siswanya.
       </DialogDescription>
       <DialogContent className="space-y-4 pt-2">
+        <div role="tablist" aria-label="Jenjang" className="inline-flex rounded-xl bg-slate-100 p-1">
+          {UNITS.map((u) => (
+            <button
+              key={u}
+              type="button"
+              role="tab"
+              aria-selected={unit === u}
+              disabled={busy}
+              onClick={() => {
+                setUnit(u)
+                setPeriod(PERIOD_LATEST)
+                setPicked({})
+              }}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                unit === u ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              {u === "SMP" ? "Raport SMP" : "Raport SD"}
+            </button>
+          ))}
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="bulk-period" className="text-sm font-medium text-slate-700">
@@ -191,37 +269,52 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
               <option value={PERIOD_ALL}>Semua gelombang ({eligible.length} siswa)</option>
             </select>
           </div>
-          <Input id="bulk-kepsek" label="Kepala sekolah" value={kepalaSekolah} onChange={(e) => setKepalaSekolah(e.target.value)} />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="sm:col-span-1">
-            <Input
-              id="bulk-pattern"
-              label="Format nomor surat"
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
-              error={patternValid ? undefined : "Harus memuat {no}"}
-            />
-          </div>
           <Input
-            id="bulk-start"
-            label="Nomor awal"
-            type="number"
-            min={0}
-            value={start}
-            onChange={(e) => setStart(Math.trunc(Number(e.target.value)))}
+            id="bulk-kepsek"
+            label="Kepala sekolah"
+            value={kepalaSekolah}
+            onChange={(e) => setKepsekByUnit((prev) => ({ ...prev, [unit]: e.target.value }))}
           />
-          <Input id="bulk-tanggal" label="Tanggal surat" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
         </div>
-        <p className="-mt-2 text-xs text-slate-500">
-          <span className="font-mono">{"{no}"}</span> = nomor urut (menurut urutan pendaftaran), <span className="font-mono">{"{unit}"}</span> = SD/SMP.
-        </p>
 
-        {(missingNim > 0 || missingTes > 0 || missingKeputusan > 0 || dupNames > 0 || dupNims > 0) && (
+        {isSD ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input id="bulk-ketua" label="Ketua pelaksana" value={ketuaPelaksana} onChange={(e) => setKetuaPelaksana(e.target.value)} />
+            <Input id="bulk-tanggal" label="Tanggal raport" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-1">
+                <Input
+                  id="bulk-pattern"
+                  label="Format nomor surat"
+                  value={pattern}
+                  onChange={(e) => setPattern(e.target.value)}
+                  error={patternValid ? undefined : "Harus memuat {no}"}
+                />
+              </div>
+              <Input
+                id="bulk-start"
+                label="Nomor awal"
+                type="number"
+                min={0}
+                value={start}
+                onChange={(e) => setStart(Math.trunc(Number(e.target.value)))}
+              />
+              <Input id="bulk-tanggal" label="Tanggal surat" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+            </div>
+            <p className="-mt-2 text-xs text-slate-500">
+              <span className="font-mono">{"{no}"}</span> = nomor urut (menurut urutan pendaftaran), <span className="font-mono">{"{unit}"}</span> = SD/SMP.
+            </p>
+          </>
+        )}
+
+        {(missingNim > 0 || missingTes > 0 || missingKeputusan > 0 || missingIndikator > 0 || dupNames > 0 || dupNims > 0) && (
           <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
             {missingNim > 0 && <li>{missingNim} siswa belum punya NIM. Isi NIM di daftar di bawah agar raportnya bisa dibuat.</li>}
             {missingTes > 0 && <li>{missingTes} siswa SMP belum mengerjakan tes akademik.</li>}
+            {missingIndikator > 0 && <li>{missingIndikator} siswa SD isian raportnya belum lengkap. Guru perlu menilai ke-23 indikator.</li>}
             {missingKeputusan > 0 && <li>{missingKeputusan} siswa belum punya keputusan dari pewawancara.</li>}
             {dupNames > 0 && (
               <li>
@@ -257,7 +350,7 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
 
         <div className="max-h-[34vh] overflow-auto rounded-xl border border-slate-200">
           {rows.length === 0 ? (
-            <p className="p-6 text-center text-sm text-slate-500">Belum ada siswa SMP pada pilihan ini.</p>
+            <p className="p-6 text-center text-sm text-slate-500">Belum ada siswa {unit} pada pilihan ini.</p>
           ) : (
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="sticky top-0 bg-slate-50">
@@ -284,7 +377,7 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
                     <td className="px-3 py-2">
                       <p className="font-medium text-slate-900">{displayName(r.c)}</p>
                       <p className="text-xs text-slate-500">
-                        {SURAT_UNIT[r.c.level === "SD" ? "SD" : "SMP"].nama} · {periodKey(r.c).replace("|", " · gel. ")}
+                        {SURAT_UNIT[unit].nama} · {periodKey(r.c).replace("|", " · gel. ")}
                       </p>
                     </td>
                     <td className="px-3 py-2">
@@ -309,12 +402,8 @@ export function SuratBulkDialog({ open, onOpenChange, candidates }: Props) {
                       <div className="flex flex-wrap gap-1">
                         {r.result.ok ? (
                           <span className={cn(BADGE, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Siap</span>
-                        ) : r.result.reason === "nim" ? (
-                          <span className={cn(BADGE, "bg-amber-50 text-amber-700 ring-amber-200")}>Belum ada NIM</span>
-                        ) : r.result.reason === "tes" ? (
-                          <span className={cn(BADGE, "bg-amber-50 text-amber-700 ring-amber-200")}>Belum tes</span>
                         ) : (
-                          <span className={cn(BADGE, "bg-amber-50 text-amber-700 ring-amber-200")}>Belum ada keputusan</span>
+                          <span className={cn(BADGE, "bg-amber-50 text-amber-700 ring-amber-200")}>{ALASAN_LABEL[r.result.reason]}</span>
                         )}
                         {r.dupName && (
                           <span className={cn(BADGE, "bg-rose-50 text-rose-700 ring-rose-200")}>

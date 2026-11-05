@@ -36,6 +36,10 @@ model Candidate {
   academicYear        String?
   gelombang           Int               @default(1)
   nim                 String?
+  originSchool        String?
+  /// Isian raport SD dari guru (JSON: nilai 23 indikator + catatan per aspek), dapat disimpan dan diubah kapan saja.
+  /// Lihat src/lib/raport-sd.ts.
+  sdRaport            String?
   aiSummary           AiSummary?
   academicTestResult  AcademicTestResult?
   academicResponses   AcademicResponse[]
@@ -179,4 +183,12 @@ model ActivityLog {
   @@index([createdAt])
   @@index([action, createdAt])
   @@index([actorId, createdAt])
+}
+
+/// Gambar tanda tangan/stempel raport. Disimpan di DB (bukan public/) karena repo publik; hanya admin yang bisa memuatnya.
+model RaportAsset {
+  key       String   @id
+  mime      String
+  data      String
+  updatedAt DateTime @updatedAt
 }

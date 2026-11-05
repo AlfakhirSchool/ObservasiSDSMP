@@ -83,8 +83,8 @@ const STATUS_DARI_REKOMENDASI: Record<string, SuratStatus> = {
 }
 
 /**
- * Jenjang yang raportnya aktif. SD menyusul: template dan data tes SD belum ada. Konfigurasi SD tetap
- * disiapkan di SURAT_UNIT; tambahkan "SD" ke daftar ini untuk mengaktifkannya.
+ * Jenjang yang memakai SURAT (surat satu halaman, halaman /surat). Raport SD berbentuk lain (8 halaman, dua
+ * bahasa, tabel indikator) dan dibuat oleh src/lib/raport-sd.ts + raport-sd-pdf.ts, bukan dari daftar ini.
  */
 export const SURAT_UNIT_AKTIF: SuratUnit[] = ["SMP"]
 
@@ -175,6 +175,9 @@ export interface SuratCandidateInput {
   /** Dipakai sebagai tanggal pelaksanaan untuk siswa tanpa tes (SD). */
   createdAt: Date | string
   note?: { recommendation: string } | null
+  /** Asal sekolah dan isian guru; hanya dipakai raport SD (src/lib/raport-sd.ts). */
+  originSchool?: string | null
+  sdRaport?: string | null
 }
 
 export interface SuratDefaults {

@@ -8,6 +8,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/input"
+import SdRaportForm from "./sd-raport-form"
 import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
 import {
@@ -395,6 +396,17 @@ export default function CandidateDetailClient({
               )}
             </div>
           </section>
+
+          {/* RAPORT OBSERVASI SD (bisa diubah kapan saja, tidak ikut terkunci bersama catatan) */}
+          {candidate.level === "SD" && (
+            <SdRaportForm
+              candidateId={candidate.id}
+              candidateName={candidate.name}
+              initialAsalSekolah={candidate.originSchool}
+              initialSdRaport={candidate.sdRaport}
+              canEdit
+            />
+          )}
 
           {/* CATATAN OBSERVASI */}
           <section className={CARD_CLASS}>

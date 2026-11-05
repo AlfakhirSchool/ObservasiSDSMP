@@ -50,6 +50,8 @@ interface Candidate {
   note?: { recommendation: string } | null
   /** Bentuk dari /api/candidates (polling); halaman awal memakai `note`. */
   notes?: { recommendation: string }[]
+  originSchool?: string | null
+  sdRaport?: string | null
   academicTestResult?: {
     totalScore: number
     subjectScores: string
@@ -731,7 +733,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                           >
                             <QrCode size={16} aria-hidden="true" />
                           </button>
-                          {c.level === "SMP" && (
+                          {(c.level === "SMP" || c.level === "SD") && (
                             <a
                               href={`/surat/${c.id}`}
                               target="_blank"
@@ -827,6 +829,9 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               const gelombang = Number(formData.get("gelombang"))
               const academicYear = String(formData.get("academicYear") ?? "").trim() || undefined
               const nim = String(formData.get("nim") ?? "").trim() || null
+              // Hanya ada di form untuk siswa SD; undefined = tidak diubah.
+              const originRaw = formData.get("originSchool")
+              const originSchool = typeof originRaw === "string" ? originRaw.trim() || null : undefined
 
               if (typeof name !== "string" || typeof level !== "string" || !isLevel(level)) return
               if (!Number.isInteger(gelombang) || gelombang < 1) return
@@ -837,7 +842,8 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                 level,
                 gelombang,
                 nim,
-                academicYear: academicYear ?? item.academicYear
+                academicYear: academicYear ?? item.academicYear,
+                ...(originSchool !== undefined ? { originSchool } : {}),
               } : item))
 
               const res = await updateCandidate(editingCandidate.id, {
@@ -846,6 +852,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                 gelombang,
                 nim,
                 academicYear,
+                ...(level === "SD" && originSchool !== undefined ? { originSchool } : {}),
               })
               if (res.success) {
                 toast.success("Data siswa berhasil diperbarui")
@@ -920,6 +927,21 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                 className={cn(controlCls, "w-full px-3")}
               />
             </div>
+
+            {editingCandidate?.level === "SD" && (
+              <div className="space-y-1.5">
+                <label htmlFor="edit-origin" className={labelCls}>Asal sekolah (TK/PAUD)</label>
+                <input
+                  id="edit-origin"
+                  name="originSchool"
+                  maxLength={120}
+                  autoComplete="off"
+                  defaultValue={editingCandidate.originSchool ?? ""}
+                  placeholder="Tampil di raport observasi SD; guru juga bisa mengisinya"
+                  className={cn(controlCls, "w-full px-3")}
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

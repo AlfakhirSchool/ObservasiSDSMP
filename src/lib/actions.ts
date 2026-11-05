@@ -185,6 +185,7 @@ export async function updateCandidate(id: string, data: {
   room?: string | null
   selectedInterviewer?: string | null
   nim?: string | null 
+  originSchool?: string | null
 }) {
   await assertAdmin()
   try {

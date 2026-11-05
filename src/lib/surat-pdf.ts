@@ -41,7 +41,7 @@ const FONT_URLS = {
   italic: "/fonts/NotoSerif-italic.ttf",
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
+export function blobToDataUrl(blob: Blob): Promise<string> {
   const { promise, resolve, reject } = Promise.withResolvers<string>()
   const reader = new FileReader()
   reader.onload = () => resolve(String(reader.result))
@@ -50,7 +50,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   return promise
 }
 
-async function fetchBlob(url: string) {
+export async function fetchBlob(url: string) {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Gagal memuat ${url}`)
   return res.blob()
@@ -59,7 +59,7 @@ async function fetchBlob(url: string) {
 let fontsPromise: Promise<SuratAssets["fonts"]> | null = null
 const logoPromises: Partial<Record<SuratUnit, Promise<string>>> = {}
 
-function loadFonts() {
+export function loadFonts() {
   fontsPromise ??= (async () => {
     const [regular, bold, italic] = await Promise.all(
       [FONT_URLS.regular, FONT_URLS.bold, FONT_URLS.italic].map(async (url) => {
@@ -94,7 +94,7 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-type FontStyle = "normal" | "bold" | "italic"
+export type FontStyle = "normal" | "bold" | "italic"
 
 /** Posisi baseline di dalam kotak baris CSS: tengah kotak + ~0,35 x ukuran font. */
 const baseline = (lineTop: number, lineH: number, fontPx: number) => lineTop + lineH / 2 + 0.35 * fontPx
@@ -176,7 +176,8 @@ export async function buildSuratPdf(d: SuratData, assets: SuratAssets): Promise<
     // Kata sandi untuk membuka PDF = NIM siswa. Pemilik (acak) menahan perubahan izin; yang tersisa hanya cetak.
     encryption: { userPassword: nim, ownerPassword, userPermissions: ["print"] },
   })
-  doc.setProperties({ title: `Surat Hasil Observasi dan Asesmen — ${d.nama}` })
+  // Judul PDF terenkripsi diacak jsPDF bila ada karakter non-ASCII (mis. em dash, nama beraksen): pakai ASCII saja.
+  doc.setProperties({ title: `Surat Hasil Observasi dan Asesmen - ${d.nama}`.replace(/[^\x20-\x7E]/g, "") })
 
   const styles: [FontStyle, string][] = [
     ["normal", assets.fonts.regular],
