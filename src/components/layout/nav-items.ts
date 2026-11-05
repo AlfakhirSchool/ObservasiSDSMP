@@ -1,4 +1,4 @@
-import { GraduationCap, HelpCircle, History, LayoutDashboard, UserCog, Users, type LucideIcon } from "lucide-react"
+import { GraduationCap, HelpCircle, History, LayoutDashboard, Table2, UserCog, Users, type LucideIcon } from "lucide-react"
 
 export interface NavItem {
   href: string
@@ -12,6 +12,7 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/questions", label: "Observasi", icon: HelpCircle },
   { href: "/admin/academic", label: "Akademik", icon: GraduationCap },
   { href: "/admin/users", label: "Pengguna", icon: UserCog },
+  { href: "/admin/rekap", label: "Rekap", icon: Table2 },
   { href: "/admin/activity", label: "Riwayat", icon: History },
 ]
 
