@@ -40,11 +40,14 @@ Aplikasi web untuk mengelola proses PPDB dari pendaftaran sampai surat hasil: or
 - **Catatan** dan **Monitor Pewawancara**: pantau progres setiap pewawancara dari data sebenarnya.
 - **Pengguna**: tambah akun, ganti password, hapus akun.
 - **Riwayat aktivitas**: log siapa melakukan apa, kapan, dan dari IP mana. Disimpan 1 tahun.
+- **Rekap Hasil**: tabel seperti Excel, satu baris per nama dan satu kolom per pertanyaan atau indikator. SD: jawaban orang tua dan raport observasi (23 indikator). SMP: jawaban orang tua dan jawaban siswa. Ada filter periode, guru, status pengisian, dan pencarian (termasuk isi jawaban), serta baris ringkasan di bawah tabel. Admin dan pewawancara sama-sama dapat melihatnya.
 - **Raport PDF**: unduh satuan atau massal (zip), dikunci dengan NIM siswa.
 
 **Pewawancara**
 - Hanya melihat siswa yang ditugaskan kepadanya.
 - Mengisi catatan observasi. Setelah dikirim, catatan terkunci.
+- Siswa SD: mengisi dan menyimpan penilaian raport (23 indikator), dapat diedit kembali kapan saja.
+- **Rekap Hasil**: melihat hasil **semua siswa** (bukan hanya miliknya) dalam tabel seperti Excel. Detail siswa guru lain tidak bisa dibuka.
 - Ringkasan profil siswa oleh Gemini AI, dibuat saat pewawancara menekan tombolnya di halaman detail siswa.
 
 **Publik (tanpa akun)**
@@ -177,6 +180,8 @@ Login memakai **username dan password**, bukan akun Google. Pemeriksaan peran di
 | Kelola siswa dan soal | ✅ | ✅ | ❌ | ❌ |
 | Pengguna dan Monitor Pewawancara | ✅ | ❌ | ❌ | ❌ |
 | Unduh raport PDF | ✅ | ✅ | ❌ | ❌ |
+| Lihat **Rekap Hasil** (semua siswa, tanpa NIM) | ✅ | ✅ | ✅ | ❌ |
+| Buka detail siswa dari rekap | ✅ (semua) | ✅ (semua) | hanya siswa miliknya | ❌ |
 | Isi catatan observasi | ✅ | ✅ | ✅ (siswa miliknya) | ❌ |
 | Ringkasan AI | ✅ | ✅ | ✅ (siswa miliknya) | ❌ |
 | Isi formulir dan tes siswa | ✅ | ✅ | ✅ | ✅ (hanya tahu ID siswa) |
@@ -191,12 +196,30 @@ Surat "Hasil Observasi dan Asesmen PPDB" dibuat di browser dengan jsPDF mengikut
 - **Massal**: tombol **Unduh Raport** di Daftar Siswa. Pilih gelombang, periksa NIM dan data kembar, pilih siswa, lalu unduh satu zip. Nomor surat disusun dari format seperti `{no}/B-{unit}/AL-FAKHIR/II/2026`.
 - **Kunci PDF**: kata sandi untuk membuka setiap PDF adalah **NIM siswa**. Siswa tanpa NIM tidak bisa dibuatkan raport, jadi isi NIM lewat dialog Edit atau langsung di dialog unduh.
 - **Keputusan** diisi dari rekomendasi pewawancara (Terima, Pertimbangkan, Tolak).
-- **Status**: raport SMP aktif. Raport SD sudah disiapkan di kode tetapi dimatikan sampai template dan data kop SD tersedia. Aktifkan dengan menambahkan `"SD"` ke `SURAT_UNIT_AKTIF` di `src/lib/surat.ts`.
+- **Raport SD** berbeda bentuk dari surat SMP, lihat bagian berikutnya.
+
+### Raport observasi SD
+
+PDF dua bahasa (Inggris dan Indonesia, sekitar 8 halaman): deskripsi umum, lalu tabel hasil 23 indikator di 4 aspek (Kognitif, Motorik Halus, Motorik Kasar, Al-Qur'an) dengan catatan tiap aspek, keputusan, dan tanda tangan Kepala Sekolah serta Ketua Pelaksana.
+
+- **Guru mengisi, admin mengunduh.** Di halaman detail siswa SD, kartu **Raport Observasi SD** berisi asal sekolah, penilaian tiap indikator (Berkembang / Belum Berkembang; untuk Al-Qur'an Berkembang Baik / Berkembang), dan catatan per aspek. Guru menekan **Simpan** dan boleh mengubahnya lagi kapan saja. Isian ini tidak ikut terkunci seperti catatan observasi.
+- **Predikat aspek** dihitung otomatis: "Belum Berkembang" bila setidaknya separuh indikator aspek itu belum berkembang. Catatan aspek terisi otomatis sesuai predikat; guru bisa menulis sendiri (Indonesia). Versi Inggris selalu dari templat, admin dapat mengubahnya di editor.
+- **Admin**: ikon dokumen di daftar siswa membuka editor dengan pratinjau PDF asli. Untuk massal, buka **Unduh Raport** lalu pilih tab **Raport SD**. Siswa hanya "Siap" bila NIM, keputusan pewawancara, dan ke-23 indikator sudah terisi. PDF dikunci dengan NIM seperti raport SMP.
+- **Tanda tangan dan stempel** tidak disimpan di repo (repo ini publik, siapa pun bisa mengunduh dan memalsukannya). Gambar PNG disimpan di tabel `RaportAsset` dan hanya dimuat admin lewat `/api/raport-assets/<key>`. Pasang atau ganti dengan:
+
+  ```bash
+  node prisma/set-asset.cjs sd-ttd-kepsek  tanda-tangan-kepala-sekolah.png
+  node prisma/set-asset.cjs sd-stempel     stempel.png
+  node prisma/set-asset.cjs sd-ttd-ketua   tanda-tangan-ketua-pelaksana.png
+  ```
+
+  Bila belum dipasang, raport tetap terbuat dengan ruang tanda tangan kosong.
+- Huruf "ā" pada "Alhamdulillāh" tercetak "a" karena font yang disematkan tidak memuatnya.
 
 ## Keamanan
 
 - Password disimpan sebagai hash scrypt dengan salt. Perbandingan berjalan dalam waktu konstan.
-- Login dibatasi: 5 percobaan gagal per username dan 20 per IP dalam 15 menit. Sesi berlaku 12 jam.
+- Login dibatasi: 5 percobaan gagal per username dalam 15 menit, dan 100 per IP (longgar karena banyak guru memakai satu Wi-Fi sekolah). Sesi berlaku 12 jam.
 - Semua Server Action dan API route memeriksa peran. Pewawancara hanya bisa mengakses siswa yang ditugaskan kepadanya.
 - Endpoint publik (formulir, tes akademik) memvalidasi input dengan Zod, dibatasi lajunya per IP, dan menolak pengiriman setelah observasi selesai. Hasil tes pertama tidak bisa ditimpa. **Belum ada otentikasi pengirim**: lihat catatan di bawah.
 - Kunci jawaban tes tidak pernah dikirim ke browser.
@@ -225,12 +248,14 @@ src/
 │   ├── guards.ts               assertAdmin, perbandingan rahasia
 │   ├── rate-limit.ts           Pembatas laju berbasis database
 │   ├── activity*.ts            Riwayat aktivitas
-│   ├── surat*.ts               Data dan pembuat PDF raport
+│   ├── surat*.ts               Data dan pembuat PDF surat SMP
+│   ├── raport-sd*.ts           Data, aturan, dan pembuat PDF raport SD
 │   ├── candidate-auth.ts       Token akses siswa (dibuat, belum diperiksa di API publik)
 │   └── gemini.ts               Ringkasan AI
 prisma/
 ├── schema.prisma               Skema database
-└── set-user.cjs                Buat atau ubah akun login
+├── set-user.cjs                Buat atau ubah akun login
+└── set-asset.cjs               Simpan tanda tangan/stempel raport SD ke database
 public/fonts/                   Noto Serif untuk PDF
 ```
 
@@ -246,6 +271,7 @@ public/fonts/                   Noto Serif untuk PDF
 | `AiSummary` | Ringkasan AI per siswa |
 | `ActivityLog` | Riwayat aktivitas |
 | `RateLimitHit` | Penghitung pembatas laju |
+| `RaportAsset` | Gambar tanda tangan dan stempel raport SD (disimpan di database, bukan di repo) |
 
 ## Deployment
 
@@ -269,6 +295,7 @@ Branch `main` adalah cabang yang tayang. Commit ke `main` bisa langsung memicu d
 | Pewawancara tidak melihat siswa | Nama akunnya tidak sama persis dengan nama di kolom Pewawancara pada data siswa. |
 | QR atau tautan lama berhenti bekerja | `NEXTAUTH_SECRET` diganti. Token lama tidak berlaku lagi, bagikan QR baru. |
 | `npm` memperingatkan versi Node | Hanya peringatan jika Node 20 dengan npm terbaru. Aplikasi tetap berjalan. Gunakan Node 22 LTS untuk menghilangkannya. |
+| Banyak halaman gagal dengan `P2024: Timed out fetching a new connection from the connection pool` | Kolam koneksi Prisma habis (biasanya karena database jauh dan banyak pengguna bersamaan). Kolam sudah dilebarkan di `src/lib/prisma.ts` (30 koneksi, tunggu 45 dtk) bila belum diatur di `DATABASE_URL`; tambahkan `connection_limit` dan `pool_timeout` di URL untuk mengubahnya. Setelah macet, mulai ulang server. |
 
 ## Lisensi
 
