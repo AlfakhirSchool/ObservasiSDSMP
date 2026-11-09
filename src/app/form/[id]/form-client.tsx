@@ -236,15 +236,25 @@ function FormWizard({ candidate, questions, role, token }: Props) {
       </header>
 
       <div className="mx-auto max-w-[770px] px-3 md:px-4">
-        <div className="relative -mt-9 flex items-center gap-3.5 rounded-2xl bg-white p-4 shadow-lg shadow-slate-900/[0.07] ring-1 ring-slate-100">
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold", accent.soft, accent.text)} aria-hidden="true">
-            {initial}
+        <div className="relative -mt-9 rounded-2xl bg-white p-4 shadow-lg shadow-slate-900/[0.07] ring-1 ring-slate-100 space-y-3">
+          <div className="flex items-center gap-3.5">
+            <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold", accent.soft, accent.text)} aria-hidden="true">
+              {initial}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Calon siswa</p>
+              <p className="truncate text-[16px] font-bold text-slate-900">{candidate.name}</p>
+              {candidate.selectedInterviewer && <p className="truncate text-[12px] text-slate-500">Pewawancara: {candidate.selectedInterviewer}</p>}
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Calon siswa</p>
-            <p className="truncate text-[16px] font-bold text-slate-900">{candidate.name}</p>
-            {candidate.selectedInterviewer && <p className="truncate text-[12px] text-slate-500">Pewawancara: {candidate.selectedInterviewer}</p>}
-          </div>
+          {isParent && (
+            <div className="rounded-xl bg-amber-50/90 border border-amber-200/80 p-3 text-xs text-amber-900 leading-relaxed flex items-start gap-2">
+              <span className="text-sm">💡</span>
+              <div>
+                <strong>Catatan:</strong> Jika penulisan nama ananda ada yang salah, Ayah/Bunda boleh langsung memperbaikinya dengan menulis ulang nama yang benar pada isian di bawah.
+              </div>
+            </div>
+          )}
         </div>
 
         <nav aria-label="Bagian formulir" className="sticky top-0 z-20 -mx-3 mt-3 bg-white/90 shadow-sm shadow-slate-900/[0.04] backdrop-blur md:mx-0 md:rounded-2xl">

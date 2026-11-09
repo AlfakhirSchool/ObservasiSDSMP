@@ -269,8 +269,13 @@ export default function FormPortalClient({ candidates }: Props) {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-xs font-medium text-emerald-800">
-                  ✓ Formulir observasi ini diisi oleh <strong>Orang Tua / Wali</strong> calon siswa.
+                <div className="space-y-2.5">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-xs font-medium text-emerald-800">
+                    ✓ Formulir observasi ini diisi oleh <strong>Orang Tua / Wali</strong> calon siswa.
+                  </div>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-xs font-medium text-amber-900 leading-relaxed text-left">
+                    💡 <strong>Catatan:</strong> Jika penulisan nama ananda ada yang salah atau keliru, Ayah & Bunda boleh langsung memperbaikinya dengan menulis ulang nama yang benar di dalam formulir.
+                  </div>
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -499,6 +504,12 @@ export default function FormPortalClient({ candidates }: Props) {
                     </button>
                   </div>
                 </div>
+
+                {role === "parent" && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-xs font-medium text-amber-900 leading-relaxed text-left">
+                    💡 <strong>Catatan:</strong> Jika penulisan nama ananda ada yang salah atau keliru, Ayah & Bunda boleh langsung memperbaikinya dengan menulis ulang nama yang benar di dalam formulir.
+                  </div>
+                )}
 
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1 h-14 rounded-2xl border-slate-200 font-bold" onClick={() => setStep(2)}>

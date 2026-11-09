@@ -50,7 +50,7 @@ export function systemQuestions(candidateName: string): { questions: FormQuestio
       {
         id: SYS_NAME,
         text: "Nama Lengkap Ananda",
-        hint: "Periksa penulisan nama. Perbaiki bila ada yang salah.",
+        hint: "Periksa penulisan nama ananda di atas. Jika nama ananda salah, boleh langsung diperbaiki dengan menulis ulang nama yang benar di kolom ini.",
         type: "text",
         category: "ORANG TUA",
       },
