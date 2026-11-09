@@ -28,14 +28,12 @@ export default async function InterviewerSDPage() {
     hasNote: c.notes.length > 0,
   }))
 
-  const lockedInterviewer =
-    session.user.role === "interviewer" ? session.user.name ?? undefined : undefined
-
+  // Untuk Unit SD, semua siswa SD tampil di semua observer SD (tidak dikunci per guru)
   return (
     <InterviewerDashboardClient
       unit="SD"
       initialCandidates={rows}
-      lockedInterviewer={lockedInterviewer}
+      lockedInterviewer={undefined}
     />
   )
 }

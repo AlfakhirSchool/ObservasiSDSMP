@@ -92,6 +92,15 @@ model FormQuestion {
   order     Int          @default(0)
   options   String?
   isSystem  Boolean      @default(false)
+  /// Judul bagian/langkah di formulir publik. Kosong = dikumpulkan di bagian umum.
+  section   String?
+  /// false = boleh dikosongkan oleh pengisi.
+  required  Boolean      @default(true)
+  /// Petunjuk singkat di bawah pertanyaan (mis. contoh pengisian).
+  hint      String?
+  /// Tampilkan hanya bila jawaban pertanyaan `showIfId` sama dengan `showIfValue` (tanpa relasi; id yang hilang = selalu tampil).
+  showIfId    String?
+  showIfValue String?
   createdAt DateTime     @default(now())
   answers   FormAnswer[]
 }

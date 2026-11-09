@@ -32,12 +32,16 @@ export async function addCandidate(data: { name: string; level: string; room?: s
     if ((await existingNames(data.level as Level, year)).includes(normalizeName(data.name))) {
       return { success: false, error: `Siswa "${data.name.trim()}" sudah terdaftar di jenjang ini (tahun ajaran ${year}).` }
     }
+    const interviewer = data.level === "SD"
+      ? (data.selectedInterviewer && data.selectedInterviewer !== "" ? data.selectedInterviewer : "Semua Observer SD")
+      : (data.selectedInterviewer || null)
+
     const created = await prisma.candidate.create({
       data: {
         name: data.name,
         level: data.level as Level,
         room: data.room || null,
-        selectedInterviewer: data.selectedInterviewer || null,
+        selectedInterviewer: interviewer,
         status: "PENDING",
         academicYear: year,
         gelombang: data.gelombang ?? (await getCurrentGelombang(year)),
@@ -242,7 +246,7 @@ export async function importCandidates(candidates: any[]) {
         name: c.name,
         level: c.level as Level,
         room: c.room || null,
-        selectedInterviewer: c.interviewer || null,
+        selectedInterviewer: c.level === "SD" ? (c.interviewer || "Semua Observer SD") : (c.interviewer || null),
         status: "PENDING",
         academicYear: year,
         gelombang: gelombang

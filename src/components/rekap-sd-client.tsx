@@ -64,8 +64,8 @@ export function RekapSdClient({ rows, ownerName, detailBase }: Props) {
   }
 
   const fixedCols = 4
-  /** Pewawancara hanya boleh membuka detail siswanya sendiri; admin boleh membuka semua. */
-  const canOpen = (r: RekapSdRow) => !ownerName || r.guru === ownerName
+  /** Untuk jenjang SD, semua guru observer boleh membuka detail dan raport setiap siswa SD. */
+  const canOpen = (_r: RekapSdRow) => true
 
   return (
     <div className="space-y-6">

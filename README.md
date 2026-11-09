@@ -51,7 +51,7 @@ Aplikasi web untuk mengelola proses PPDB dari pendaftaran sampai surat hasil: or
 - Ringkasan profil siswa oleh Gemini AI, dibuat saat pewawancara menekan tombolnya di halaman detail siswa.
 
 **Publik (tanpa akun)**
-- Orang tua dan siswa mengisi formulir lewat tautan atau QR siswa.
+- Orang tua dan siswa mengisi formulir lewat tautan atau QR siswa. Formulir **bertahap per bagian** dan nyaman di ponsel: bar progres, pilihan berupa tombol besar, kolom "Yang lain", pertanyaan bersyarat (mis. "Jika pernah kejang, usia berapa?" hanya tampil bila dijawab Ya), dan jawaban **tersimpan otomatis di perangkat** sehingga tidak hilang bila halaman tertutup.
 - Siswa SMP mengerjakan tes akademik.
 
 ## Alur kerja
@@ -216,6 +216,15 @@ PDF dua bahasa (Inggris dan Indonesia, sekitar 8 halaman): deskripsi umum, lalu 
   Bila belum dipasang, raport tetap terbuat dengan ruang tanda tangan kosong.
 - Huruf "ā" pada "Alhamdulillāh" tercetak "a" karena font yang disematkan tidak memuatnya.
 
+## Soal formulir orang tua SD
+
+Soal orang tua SD berasal dari "Data Diri Anak Peserta Tes Kesiapan Sekolah": 118 pertanyaan dalam 12 bagian (identitas anak, data ayah dan ibu, tumbuh kembang, kemandirian, kesehatan, kebiasaan, sosial-emosional, gaya belajar, keagamaan, harapan orang tua). "Nama Lengkap Ananda" tidak berupa soal tersendiri karena sudah diisi otomatis di langkah **Konfirmasi Data** (koreksi nama) dan tersimpan sebagai nama koreksi.
+
+- **Mengganti soal**: ubah daftar di `prisma/seed-sd-parent.cjs`, lalu jalankan `node prisma/seed-sd-parent.cjs --ya`. Tanpa `--ya` skrip hanya menampilkan peringatan. **Soal lama dan jawaban orang tua SD yang terkait ikut terhapus** (relasi cascade), jadi cadangkan dulu bila masih diperlukan. Skrip aman dijalankan ulang: id soal tetap (`sd-ortu-<kunci>`).
+- **Pertanyaan bersyarat** memakai `showIfId` dan `showIfValue`; jawabannya yang disembunyikan tidak ikut terkirim. Hanya soal wajib dan tidak bersyarat yang dihitung untuk status **Lengkap** di Rekap Hasil.
+- Soal yang ditambah lewat menu **Observasi** tidak punya bagian dan tampil di bagian umum yang dipecah per 8 pertanyaan. Tipe jawaban yang tersedia: teks pendek, paragraf, angka, pilihan, dan penilaian 1-5.
+- Ringkasan AI dibuat **setelah** jawaban dibalas (bukan saat orang tua menunggu), jadi muncul beberapa detik setelah formulir terkirim.
+
 ## Keamanan
 
 - Password disimpan sebagai hash scrypt dengan salt. Perbandingan berjalan dalam waktu konstan.
@@ -255,7 +264,8 @@ src/
 prisma/
 ├── schema.prisma               Skema database
 ├── set-user.cjs                Buat atau ubah akun login
-└── set-asset.cjs               Simpan tanda tangan/stempel raport SD ke database
+├── set-asset.cjs               Simpan tanda tangan/stempel raport SD ke database
+└── seed-sd-parent.cjs          Ganti seluruh soal orang tua SD (menghapus soal dan jawaban lama)
 public/fonts/                   Noto Serif untuk PDF
 ```
 
@@ -265,7 +275,7 @@ public/fonts/                   Noto Serif untuk PDF
 |---|---|
 | `User` | Akun login (username, hash password, peran) |
 | `Candidate` | Calon siswa: jenjang, ruangan, pewawancara, tahun ajaran, gelombang, NIM |
-| `FormQuestion`, `FormAnswer` | Soal wawancara dan jawaban orang tua atau siswa |
+| `FormQuestion`, `FormAnswer` | Soal wawancara dan jawaban orang tua atau siswa. Soal punya bagian (`section`), wajib/opsional (`required`), petunjuk (`hint`), dan tampil bersyarat (`showIfId` + `showIfValue`) |
 | `AcademicQuestion`, `AcademicResponse`, `AcademicTestResult` | Bank soal, jawaban, dan nilai tes SMP |
 | `InterviewerNote` | Catatan observasi (satu per siswa, terkunci setelah dikirim) |
 | `AiSummary` | Ringkasan AI per siswa |

@@ -68,10 +68,7 @@ export async function POST(request: Request) {
     if (candidate.level !== "SD") {
       return NextResponse.json({ error: "Raport ini hanya untuk siswa SD" }, { status: 400 })
     }
-    // Guru hanya boleh mengisi raport siswa yang ditugaskan kepadanya.
-    if (role === "interviewer" && candidate.selectedInterviewer !== session.user.name) {
-      return NextResponse.json({ error: "Siswa ini bukan tanggung jawab Anda" }, { status: 403 })
-    }
+    // Untuk SD: setiap guru observer berhak mengisi dan menyimpan raport observasi SD.
 
     // Catatan kosong/spasi dibuang: aspek tanpa catatan memakai catatan bawaan saat raport dibuat.
     const catatanBersih: Partial<Record<SdAspekId, string>> = {}

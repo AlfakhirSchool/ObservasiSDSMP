@@ -33,15 +33,15 @@ export async function POST(request: Request) {
 
     const candidate = await prisma.candidate.findUnique({
       where: { id: validated.candidateId },
-      select: { id: true, name: true, selectedInterviewer: true, notes: { select: { isLocked: true } } },
+      select: { id: true, name: true, level: true, selectedInterviewer: true, notes: { select: { isLocked: true } } },
     })
 
     if (!candidate) {
       return NextResponse.json({ error: "Kandidat tidak ditemukan" }, { status: 404 })
     }
 
-    // Pewawancara hanya boleh mengisi catatan untuk siswa yang ditugaskan kepadanya.
-    if (role === "interviewer" && candidate.selectedInterviewer !== session.user.name) {
+    // Pewawancara hanya boleh mengisi catatan untuk siswa yang ditugaskan kepadanya (kecuali SD yang dipegang bersama semua observer).
+    if (role === "interviewer" && candidate.level !== "SD" && candidate.selectedInterviewer !== session.user.name) {
       return NextResponse.json({ error: "Siswa ini bukan tanggung jawab Anda" }, { status: 403 })
     }
 

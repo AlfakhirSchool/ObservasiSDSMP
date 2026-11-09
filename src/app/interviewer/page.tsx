@@ -32,7 +32,6 @@ export default async function InterviewerHomePage() {
     getRekapForm("SMP", "SISWA"),
   ])
 
-  const sdMilikSaya = sdOrangTua.rows.filter((r) => r.guru === user.name).length
   const smpMilikSaya = smpOrangTua.rows.filter((r) => r.guru === user.name).length
 
   return (
@@ -43,7 +42,7 @@ export default async function InterviewerHomePage() {
       smpSiswa={smpSiswa}
       ownerName={isAdmin ? undefined : (user.name ?? "")}
       detailBase={isAdmin ? "/admin/candidates" : "/interviewer"}
-      initialJenjang={!isAdmin && smpMilikSaya > sdMilikSaya ? "SMP" : "SD"}
+      initialJenjang={!isAdmin && smpMilikSaya > 0 ? "SMP" : "SD"}
     />
   )
 }

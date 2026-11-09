@@ -6,6 +6,8 @@ export type RekapKategori = "ORANG TUA" | "SISWA"
 export interface RekapFormQuestion {
   id: string
   text: string
+  /** Wajib dan tidak bersyarat. */
+  wajib: boolean
 }
 
 /** Jawaban formulir satu siswa. Sengaja tanpa NIM, nomor HP, atau email. */
@@ -19,11 +21,15 @@ export interface RekapFormRow {
   /** Jawaban per id pertanyaan; pertanyaan yang belum dijawab tidak ada di sini. */
   jawaban: Record<string, string>
   terjawab: number
+  /** Berapa pertanyaan wajib (tidak bersyarat) yang sudah dijawab. */
+  wajibTerjawab: number
 }
 
 export interface RekapFormData {
   questions: RekapFormQuestion[]
   rows: RekapFormRow[]
+  /** Jumlah pertanyaan wajib yang tidak bersyarat; patokan status "Lengkap". */
+  wajibTotal: number
 }
 
 const normalisasi = (s: string) => s.trim().toUpperCase()
@@ -34,7 +40,11 @@ const normalisasi = (s: string) => s.trim().toUpperCase()
  */
 export async function getRekapForm(jenjang: RekapJenjang, kategori: RekapKategori): Promise<RekapFormData> {
   const [allQuestions, candidates] = await Promise.all([
-    prisma.formQuestion.findMany({ where: { level: jenjang }, orderBy: { order: "asc" }, select: { id: true, text: true, category: true } }),
+    prisma.formQuestion.findMany({
+      where: { level: jenjang },
+      orderBy: { order: "asc" },
+      select: { id: true, text: true, category: true, required: true, showIfId: true },
+    }),
     prisma.candidate.findMany({
       where: { level: jenjang },
       select: { id: true, name: true, correctedName: true, selectedInterviewer: true, gelombang: true, academicYear: true },
@@ -42,7 +52,10 @@ export async function getRekapForm(jenjang: RekapJenjang, kategori: RekapKategor
     }),
   ])
 
-  const questions = allQuestions.filter((q) => normalisasi(q.category) === kategori).map(({ id, text }) => ({ id, text }))
+  const questions = allQuestions
+    .filter((q) => normalisasi(q.category) === kategori)
+    // Pertanyaan bersyarat atau opsional tidak dihitung sebagai syarat "lengkap": tidak semua orang tua melihatnya.
+    .map(({ id, text, required, showIfId }) => ({ id, text, wajib: required && !showIfId }))
   const answers =
     questions.length === 0
       ? []
@@ -60,8 +73,10 @@ export async function getRekapForm(jenjang: RekapJenjang, kategori: RekapKategor
     byCandidate.set(a.candidateId, map)
   }
 
+  const wajib = questions.filter((q) => q.wajib)
   return {
     questions,
+    wajibTotal: wajib.length,
     rows: candidates.map((c) => {
       const jawaban = byCandidate.get(c.id) ?? {}
       return {
@@ -72,6 +87,7 @@ export async function getRekapForm(jenjang: RekapJenjang, kategori: RekapKategor
         academicYear: c.academicYear,
         jawaban,
         terjawab: Object.keys(jawaban).length,
+        wajibTerjawab: wajib.filter((q) => jawaban[q.id] !== undefined).length,
       }
     }),
   }

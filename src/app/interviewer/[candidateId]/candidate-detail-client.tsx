@@ -331,7 +331,11 @@ export default function CandidateDetailClient({
           <span className="inline-flex items-center gap-1.5">
             <UserRound size={14} className="text-slate-400" aria-hidden="true" />
             Pewawancara{" "}
-            <span className="font-medium text-slate-900">{candidate.selectedInterviewer || "Belum ditunjuk"}</span>
+            <span className="font-medium text-slate-900">
+              {candidate.level === "SD" && (!candidate.selectedInterviewer || candidate.selectedInterviewer === "Semua Observer SD")
+                ? "Semua Observer SD"
+                : (candidate.selectedInterviewer || "Belum ditunjuk")}
+            </span>
           </span>
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays size={14} className="text-slate-400" aria-hidden="true" />

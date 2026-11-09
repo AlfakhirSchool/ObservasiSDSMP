@@ -112,7 +112,7 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
       {jenjang === "SD" && sumber === "raport" ? (
         <RekapSdClient key="sd-raport" rows={sdRaport} ownerName={ownerName} detailBase={detailBase} />
       ) : jenjang === "SD" ? (
-        <RekapFormClient key="sd-orangtua" data={sdOrangTua} pengisi="orang tua" ownerName={ownerName} detailBase={detailBase} />
+        <RekapFormClient key="sd-orangtua" data={sdOrangTua} pengisi="orang tua" ownerName={ownerName} detailBase={detailBase} isSd />
       ) : sumber === "siswa" ? (
         <RekapFormClient key="smp-siswa" data={smpSiswa} pengisi="siswa" ownerName={ownerName} detailBase={detailBase} />
       ) : (

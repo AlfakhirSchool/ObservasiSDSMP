@@ -379,6 +379,7 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
                   >
                     <option value="text">Teks Pendek</option>
                     <option value="long_text">Paragraf Panjang</option>
+                    <option value="number">Angka</option>
                     <option value="choice">Pilihan (Multiple Choice)</option>
                     <option value="rating">Penilaian (1-5)</option>
                   </select>

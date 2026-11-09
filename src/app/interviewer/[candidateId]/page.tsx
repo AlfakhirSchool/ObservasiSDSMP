@@ -54,9 +54,11 @@ export default async function CandidateDetailPage({
     )
   }
 
-  // Interviewer can only see their own candidates
+  // Untuk SMP: pewawancara hanya boleh membuka siswa yang ditugaskan kepadanya.
+  // Untuk SD: setiap siswa SD dapat diakses dan diobservasi oleh semua guru observer SD.
   if (
     session.user.role === "interviewer" &&
+    candidate.level !== "SD" &&
     candidate.selectedInterviewer !== session.user.name
   ) {
     return (

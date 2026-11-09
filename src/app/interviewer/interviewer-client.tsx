@@ -74,9 +74,10 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
   const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
 
   const candidates = useMemo(() => {
-    if (!lockedInterviewer) return initialCandidates
+    // Untuk SD: semua siswa SD tampil di semua observer SD
+    if (!lockedInterviewer || unit === "SD") return initialCandidates
     return initialCandidates.filter((c) => c.selectedInterviewer === lockedInterviewer)
-  }, [initialCandidates, lockedInterviewer])
+  }, [initialCandidates, lockedInterviewer, unit])
 
   const periods = useMemo(() => listPeriods(candidates), [candidates])
 
@@ -275,9 +276,13 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600"
                           aria-hidden="true"
                         >
-                          {c.selectedInterviewer?.charAt(0).toUpperCase() || "?"}
+                          {unit === "SD" ? "SD" : (c.selectedInterviewer?.charAt(0).toUpperCase() || "?")}
                         </span>
-                        <span className="text-sm text-slate-700">{c.selectedInterviewer || "Belum ditunjuk"}</span>
+                        <span className="text-sm text-slate-700">
+                          {unit === "SD"
+                            ? (c.selectedInterviewer && c.selectedInterviewer !== "Semua Observer SD" ? c.selectedInterviewer : "Semua Observer SD")
+                            : (c.selectedInterviewer || "Belum ditunjuk")}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">

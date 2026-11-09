@@ -1,8 +1,26 @@
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import PublicFormClient from "./form-client"
+import type { FormCandidate, FormQuestion } from "./form-logic"
 
 export const dynamic = "force-dynamic"
+
+const QUESTION_TYPES: readonly FormQuestion["type"][] = ["text", "long_text", "number", "choice", "rating"]
+
+/** Tipe tak dikenal diperlakukan sebagai isian teks pendek (perilaku formulir lama). */
+function toQuestionType(raw: string): FormQuestion["type"] {
+  return QUESTION_TYPES.find((t) => t === raw) ?? "text"
+}
+
+function parseOptions(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((o): o is string => typeof o === "string") : []
+  } catch {
+    return []
+  }
+}
 
 interface Props {
   params: Promise<{ id: string }>
@@ -92,21 +110,25 @@ export default async function PublicFormPage({ params, searchParams }: Props) {
     }
   })
 
-  const questions = questionsRaw.map(q => ({
-    ...q,
-    options: q.options ? JSON.parse(q.options) : []
+  const questions: FormQuestion[] = questionsRaw.map((q) => ({
+    id: q.id,
+    text: q.text,
+    type: toQuestionType(q.type),
+    category: q.category,
+    options: parseOptions(q.options),
+    section: q.section,
+    required: q.required,
+    hint: q.hint,
+    showIfId: q.showIfId,
+    showIfValue: q.showIfValue,
   }))
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <div className="max-w-3xl mx-auto px-4 py-12 md:py-24">
-        <PublicFormClient 
-          candidate={candidate as any} 
-          questions={questions as any} 
-          role={isStudentRole ? "student" : "parent"}
-          token={token}
-        />
-      </div>
-    </div>
-  )
+  const formCandidate: FormCandidate = {
+    id: candidate.id,
+    name: candidate.name,
+    level: candidate.level,
+    selectedInterviewer: candidate.selectedInterviewer,
+  }
+
+  return <PublicFormClient candidate={formCandidate} questions={questions} role={isStudentRole ? "student" : "parent"} token={token} />
 }

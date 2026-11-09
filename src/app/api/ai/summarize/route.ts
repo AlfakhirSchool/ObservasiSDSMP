@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     })
     if (!candidate) return NextResponse.json({ error: "Kandidat tidak ditemukan" }, { status: 404 })
 
-    if (role === "interviewer" && candidate.selectedInterviewer !== session.user.name) {
+    if (role === "interviewer" && candidate.level !== "SD" && candidate.selectedInterviewer !== session.user.name) {
       return NextResponse.json({ error: "Siswa ini bukan tanggung jawab Anda" }, { status: 403 })
     }
     if (candidate.formAnswers.length === 0) {

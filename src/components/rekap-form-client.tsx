@@ -21,9 +21,11 @@ interface Props {
   detailBase: string
   /** Nama pengisi untuk teks bantu, mis. "orang tua" atau "siswa". */
   pengisi: string
+  /** Untuk jenjang SD, semua observer boleh membuka detail siswa. */
+  isSd?: boolean
 }
 
-export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props) {
+export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: Props) {
   const { questions, rows } = data
   const [period, setPeriod] = useState<PeriodFilterValue>(() => periodeAwalBerisi(rows, (r) => r.terjawab > 0))
   const [guru, setGuru] = useState("")
@@ -41,13 +43,13 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props)
     const cocok = scoped.filter(
       (r) =>
         (!q || r.nama.toLowerCase().includes(q) || Object.values(r.jawaban).some((v) => v.toLowerCase().includes(q))) &&
-        cocokStatus(r.terjawab, questions.length, status)
+        cocokStatus(r.wajibTerjawab, data.wajibTotal, status)
     )
-    return milikSayaDulu(cocok, ownerName)
-  }, [scoped, query, status, questions.length, ownerName])
+    return isSd ? cocok : milikSayaDulu(cocok, ownerName)
+  }, [scoped, query, status, data.wajibTotal, ownerName, isSd])
 
-  const lengkap = scoped.filter((r) => r.terjawab === questions.length).length
-  const belum = scoped.filter((r) => r.terjawab === 0).length
+  const lengkap = scoped.filter((r) => r.wajibTerjawab === data.wajibTotal).length
+  const belum = scoped.filter((r) => r.wajibTerjawab === 0).length
   const sebagian = scoped.length - lengkap - belum
 
   const toggle = (key: string) =>
@@ -58,14 +60,14 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props)
       return next
     })
 
-  /** Pewawancara hanya boleh membuka detail siswanya sendiri; admin boleh membuka semua. */
-  const canOpen = (r: RekapFormRow) => !ownerName || r.guru === ownerName
+  /** Pewawancara hanya boleh membuka detail siswanya sendiri; admin dan seluruh observer SD boleh membuka semua. */
+  const canOpen = (r: RekapFormRow) => !ownerName || isSd || r.guru === ownerName
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard label="Siswa" value={scoped.length} icon={Users} tone="blue" />
-        <StatCard label="Lengkap" value={lengkap} icon={CheckCircle2} tone="emerald" hint={`${questions.length} dari ${questions.length} pertanyaan`} />
+        <StatCard label="Lengkap" value={lengkap} icon={CheckCircle2} tone="emerald" hint={`${data.wajibTotal} pertanyaan wajib terjawab`} />
         <StatCard label="Sebagian" value={sebagian} icon={Clock} tone="amber" hint="Belum semua dijawab" />
         <StatCard label="Belum diisi" value={belum} icon={CircleDashed} tone="slate" />
       </div>
@@ -147,10 +149,10 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi }: Props)
                       <span
                         className={cn(
                           "font-semibold",
-                          r.terjawab === questions.length ? "text-emerald-700" : r.terjawab === 0 ? "text-slate-400" : "text-amber-700"
+                          r.wajibTerjawab === data.wajibTotal ? "text-emerald-700" : r.wajibTerjawab === 0 ? "text-slate-400" : "text-amber-700"
                         )}
                       >
-                        {r.terjawab}/{questions.length}
+                        {r.wajibTerjawab}/{data.wajibTotal}
                       </span>
                     </td>
                     {questions.map((q) => {

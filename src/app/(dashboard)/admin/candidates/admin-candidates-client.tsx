@@ -118,6 +118,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
   const [isAddingCandidate, setIsAddingCandidate] = useState(false)
+  const [addUnit, setAddUnit] = useState<"SD" | "SMP">("SD")
   const [statusFilter, setStatusFilter] = useState("Semua Status")
   const [levelFilter, setLevelFilter] = useState("Semua Jenjang")
   const [period, setPeriod] = useState<PeriodFilterValue>(PERIOD_LATEST)
@@ -685,13 +686,20 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                       <td className="px-4 py-3">
                         <select
                           aria-label={`Pewawancara ${displayName}`}
-                          defaultValue={c.selectedInterviewer || ""}
+                          defaultValue={
+                            c.level === "SD" && (!c.selectedInterviewer || c.selectedInterviewer === "Semua Observer SD")
+                              ? "Semua Observer SD"
+                              : (c.selectedInterviewer || "")
+                          }
                           onChange={async (e) => {
                             await updateCandidateInterviewer(c.id, e.target.value)
                           }}
                           className={cn(cellSelectCls, "w-full min-w-[14rem]")}
                         >
-                          <option value="">Pilih pewawancara...</option>
+                          {c.level === "SD" && (
+                            <option value="Semua Observer SD">Semua Observer SD</option>
+                          )}
+                          <option value="">{c.level === "SD" ? "Pilih observer khusus..." : "Pilih pewawancara..."}</option>
                           {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
                         </select>
                       </td>
@@ -1080,6 +1088,8 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                   id="add-level"
                   name="level"
                   required
+                  value={addUnit}
+                  onChange={(e) => setAddUnit(e.target.value as "SD" | "SMP")}
                   className={cn(controlCls, "w-full cursor-pointer px-3")}
                 >
                   <option value="SD">Unit SD</option>
@@ -1119,16 +1129,31 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="add-interviewer" className={labelCls}>Pewawancara</label>
+              <label htmlFor="add-interviewer" className={labelCls}>
+                {addUnit === "SD" ? "Observer SD" : "Pewawancara SMP"}
+              </label>
               <select
                 id="add-interviewer"
                 name="selectedInterviewer"
-                required
+                required={addUnit === "SMP"}
+                defaultValue={addUnit === "SD" ? "Semua Observer SD" : ""}
                 className={cn(controlCls, "w-full cursor-pointer px-3")}
               >
-                <option value="">Pilih pewawancara...</option>
+                {addUnit === "SD" ? (
+                  <>
+                    <option value="Semua Observer SD">Semua Observer SD (Otomatis)</option>
+                    <option value="">Pilih observer tertentu...</option>
+                  </>
+                ) : (
+                  <option value="">Pilih pewawancara...</option>
+                )}
                 {INTERVIEWERS.map(name => <option key={name} value={name}>{name}</option>)}
               </select>
+              {addUnit === "SD" && (
+                <p className="text-xs text-emerald-600">
+                  ✓ Siswa SD otomatis muncul dan dapat diobservasi oleh semua guru observer SD.
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

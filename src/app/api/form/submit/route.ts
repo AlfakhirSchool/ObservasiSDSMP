@@ -1,14 +1,15 @@
 import { prisma } from "@/lib/prisma"
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { generateCandidateSummary } from "@/lib/gemini"
 import { allow, ipFromHeaders } from "@/lib/rate-limit"
 import { recordActivity } from "@/lib/activity"
-import { verifyCandidateToken, verifyParentPhoneMatch } from "@/lib/candidate-auth"
 
-// Endpoint publik (orang tua/siswa mengisi lewat QR tanpa akun): validasi ketat, batasi laju, dan
-// verifikasi token/nomor HP untuk mencegah pengisian data siswa oleh orang lain.
+// Pekerjaan setelah respons (ringkasan AI) berjalan sampai batas ini di Vercel.
+export const maxDuration = 60
+
+// Endpoint publik (orang tua/siswa mengisi lewat QR tanpa akun): validasi ketat dan batasi laju per IP dan per siswa.
 const BodySchema = z.object({
   candidateId: z.string().min(1).max(64),
   answers: z.record(z.string().max(64), z.string().max(5000)),
@@ -91,14 +92,16 @@ export async function POST(req: Request) {
       ip: ipFromHeaders(req.headers),
     })
 
-    // 3. Ringkasan AI (Gemini); kegagalan AI tidak menggagalkan penyimpanan form.
-    try {
-      const candidate = await prisma.candidate.findUnique({
-        where: { id: candidateId },
-        select: { name: true, level: true, formAnswers: { select: { value: true, question: { select: { text: true } } } } },
-      })
+    // 3. Ringkasan AI (Gemini) dibuat SETELAH jawaban dibalas: orang tua tidak perlu menunggu AI (bisa puluhan detik
+    //    untuk ratusan jawaban). Kegagalan AI tidak memengaruhi jawaban yang sudah tersimpan.
+    after(async () => {
+      try {
+        const candidate = await prisma.candidate.findUnique({
+          where: { id: candidateId },
+          select: { name: true, level: true, formAnswers: { select: { value: true, question: { select: { text: true } } } } },
+        })
+        if (!candidate) return
 
-      if (candidate) {
         const formResponse = Object.fromEntries(candidate.formAnswers.map((a) => [a.question.text, a.value]))
         const summary = await generateCandidateSummary(
           formResponse,
@@ -112,10 +115,10 @@ export async function POST(req: Request) {
           update: { summary },
           create: { candidateId, summary },
         })
+      } catch (aiError) {
+        console.error("AI Summarization failed but form was saved:", aiError)
       }
-    } catch (aiError) {
-      console.error("AI Summarization failed but form was saved:", aiError)
-    }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {
