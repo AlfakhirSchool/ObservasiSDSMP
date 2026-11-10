@@ -40,7 +40,7 @@ export async function addCandidate(data: { name: string; level: string; room?: s
       data: {
         name: data.name,
         level: data.level as Level,
-        room: data.room || null,
+        room: data.level === "SMP" ? (data.room || null) : null,
         selectedInterviewer: interviewer,
         status: "PENDING",
         academicYear: year,

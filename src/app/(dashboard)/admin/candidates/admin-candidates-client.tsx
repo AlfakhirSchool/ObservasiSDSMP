@@ -671,17 +671,21 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                         </select>
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          aria-label={`Ruangan ${displayName}`}
-                          defaultValue={c.room || ""}
-                          onChange={async (e) => {
-                            await updateCandidateRoom(c.id, e.target.value)
-                          }}
-                          className={cn(cellSelectCls, "w-24")}
-                        >
-                          <option value="">-</option>
-                          {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        {c.level === "SMP" ? (
+                          <select
+                            aria-label={`Ruangan ${displayName}`}
+                            defaultValue={c.room || ""}
+                            onChange={async (e) => {
+                              await updateCandidateRoom(c.id, e.target.value)
+                            }}
+                            className={cn(cellSelectCls, "w-24")}
+                          >
+                            <option value="">-</option>
+                            {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-slate-400 pl-2">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <select
@@ -1053,7 +1057,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               const formData = new FormData(e.currentTarget)
               const name = formData.get("name") as string
               const level = formData.get("level") as string
-              const room = formData.get("room") as string
+              const room = level === "SMP" ? (formData.get("room") as string) : undefined
               const selectedInterviewer = formData.get("selectedInterviewer") as string
 
               if (name && level) {
@@ -1081,7 +1085,36 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {addUnit === "SMP" ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="add-level" className={labelCls}>Unit sekolah</label>
+                  <select
+                    id="add-level"
+                    name="level"
+                    required
+                    value={addUnit}
+                    onChange={(e) => setAddUnit(e.target.value as "SD" | "SMP")}
+                    className={cn(controlCls, "w-full cursor-pointer px-3")}
+                  >
+                    <option value="SD">Unit SD</option>
+                    <option value="SMP">Unit SMP</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="add-room" className={labelCls}>Ruangan</label>
+                  <select
+                    id="add-room"
+                    name="room"
+                    required
+                    className={cn(controlCls, "w-full cursor-pointer px-3")}
+                  >
+                    <option value="">Pilih ruangan...</option>
+                    {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              </div>
+            ) : (
               <div className="space-y-1.5">
                 <label htmlFor="add-level" className={labelCls}>Unit sekolah</label>
                 <select
@@ -1096,19 +1129,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                   <option value="SMP">Unit SMP</option>
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="add-room" className={labelCls}>Ruangan</label>
-                <select
-                  id="add-room"
-                  name="room"
-                  required
-                  className={cn(controlCls, "w-full cursor-pointer px-3")}
-                >
-                  <option value="">Pilih ruangan...</option>
-                  {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-            </div>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor="add-gelombang" className={labelCls}>Gelombang</label>
