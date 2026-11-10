@@ -9,7 +9,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/input"
-import SdRaportForm from "./sd-raport-form"
+import FormAnswersViewer from "./form-answers-viewer"
 import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
 import {
@@ -266,22 +266,6 @@ export default function CandidateDetailClient({
         ? "bg-rose-50 text-rose-700 ring-rose-200"
         : "bg-amber-50 text-amber-700 ring-amber-200"
 
-  const renderAnswerList = (entries: typeof formEntries, emptyTitle: string) =>
-    entries.length > 0 ? (
-      <dl className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-        {entries.map((entry) => (
-          <div key={entry.id} className="grid gap-1 px-4 py-3 sm:grid-cols-5 sm:gap-4">
-            <dt className="text-sm text-slate-500 sm:col-span-2">{entry.question.text}</dt>
-            <dd className="whitespace-pre-wrap text-sm font-medium text-slate-900 sm:col-span-3">{entry.value || "-"}</dd>
-          </div>
-        ))}
-      </dl>
-    ) : (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50">
-        <EmptyState icon={FileText} title={emptyTitle} className="py-8" />
-      </div>
-    )
-
   const studentInfo = [
     { label: "Nama siswa", value: candidate.name },
     ...(candidate.correctedName && candidate.correctedName !== candidate.name
@@ -365,45 +349,6 @@ export default function CandidateDetailClient({
             </dl>
           </section>
 
-          {/* JAWABAN FORMULIR */}
-          <section className={CARD_CLASS}>
-            <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Jawaban formulir</h2>
-                <p className="mt-0.5 text-sm text-slate-500">Jawaban dari orang tua{showAcademic ? " dan calon siswa" : ""}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setQrType("form_parent")
-                  setShowQrDialog(true)
-                }}
-                className={BTN_SECONDARY_SM}
-              >
-                <QrCode size={14} aria-hidden="true" />
-                QR Formulir
-              </button>
-            </div>
-            <div className="space-y-6 p-5">
-              <div className="space-y-3">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span className="h-4 w-1 rounded-full bg-emerald-500" aria-hidden="true" />
-                  Observasi orang tua
-                </h3>
-                {renderAnswerList(parentAnswers, "Menunggu jawaban formulir dari orang tua")}
-              </div>
-              {candidate.level !== "SD" && (
-                <div className="space-y-3">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <span className="h-4 w-1 rounded-full bg-blue-500" aria-hidden="true" />
-                    Wawancara calon siswa
-                  </h3>
-                  {renderAnswerList(studentAnswers, "Menunggu jawaban formulir dari calon siswa")}
-                </div>
-              )}
-            </div>
-          </section>
-
           {/* TAUTAN RAPORT OBSERVASI SD (dikelola di halaman terpisah khusus Raport SD) */}
           {candidate.level === "SD" && (
             <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
@@ -431,7 +376,7 @@ export default function CandidateDetailClient({
             </section>
           )}
 
-          {/* CATATAN OBSERVASI */}
+          {/* CATATAN OBSERVASI (Disimpan di atas jawaban formulir orang tua) */}
           <section className={CARD_CLASS}>
             <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
               <div>
@@ -553,6 +498,17 @@ export default function CandidateDetailClient({
               )}
             </div>
           </section>
+
+          {/* JAWABAN FORMULIR (Sekarang berada di bawah Catatan Observasi, rapi dan tidak memanjang ke bawah) */}
+          <FormAnswersViewer
+            parentAnswers={parentAnswers}
+            studentAnswers={studentAnswers}
+            isSd={candidate.level === "SD"}
+            onShowQr={() => {
+              setQrType("form_parent")
+              setShowQrDialog(true)
+            }}
+          />
         </div>
 
         {/* RIGHT COLUMN */}

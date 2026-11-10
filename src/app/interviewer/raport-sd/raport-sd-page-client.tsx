@@ -133,31 +133,41 @@ export default function RaportSdPageClient({ candidates: initialCandidates, obse
 
   return (
     <div className="space-y-6">
-      {/* Header Halaman */}
+      {/* Navigasi: kembali + jejak halaman */}
+      <nav aria-label="Navigasi" className="flex flex-wrap items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? router.back() : router.push(homeHref))}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          Kembali
+        </button>
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        <Link href={homeHref} className="inline-flex items-center gap-1.5 font-medium text-slate-500 hover:text-emerald-700">
+          <Home size={15} aria-hidden="true" />
+          Beranda
+        </Link>
+        <ChevronRight size={14} className="text-slate-300" aria-hidden="true" />
+        <span className="font-semibold text-slate-900">Raport Observasi SD</span>
+      </nav>
+
       <PageHeader
         title="Raport Observasi SD"
-        description="Halaman khusus pengisian dan penilaian 20 indikator observasi calon siswa SD. Pilih nama siswa untuk mulai menilai."
+        description="Pilih nama anak, isi 20 indikator, lalu Simpan. Gunakan Sebelumnya / Selanjutnya untuk menilai anak berikutnya."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => (window.history.length > 1 ? router.back() : router.push(homeHref))}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              Kembali
-            </button>
             <Link
-              href={homeHref}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              href="/interviewer"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
-              <Home size={16} aria-hidden="true" />
-              Kembali ke Beranda
+              Rekap Hasil
             </Link>
             <Link
               href="/interviewer/sd"
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
+              <Users size={16} aria-hidden="true" />
               Daftar Siswa SD
             </Link>
           </div>
