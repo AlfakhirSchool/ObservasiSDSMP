@@ -39,11 +39,36 @@ export default async function InterviewerLayout({
                 <span className="hidden sm:inline">Dashboard Admin</span>
               </Link>
             )}
+
+            {/* Pilihan Jenjang Koreksi Pewawancara: SD dan SMP terpisah */}
+            <div
+              role="group"
+              aria-label="Pilihan Jenjang Koreksi"
+              className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
+            >
+              <Link
+                href="/interviewer/sd"
+                title="Koreksi Observasi Calon Siswa SD"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-orange-200 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-orange-400" aria-hidden="true" />
+                <span>Koreksi SD</span>
+              </Link>
+              <Link
+                href="/interviewer/smp"
+                title="Koreksi Wawancara Calon Siswa SMP"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-emerald-200 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+                <span>Koreksi SMP</span>
+              </Link>
+            </div>
+
             <Link
               href="/interviewer/raport-sd"
               aria-label="Raport SD"
-              title="Raport Observasi SD"
-              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold text-amber-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 sm:px-3"
+              title="Raport Observasi SD (20 Indikator)"
+              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-xs sm:text-sm font-semibold text-amber-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 sm:px-3"
             >
               <ClipboardList size={16} aria-hidden="true" />
               <span>Raport SD</span>
@@ -51,7 +76,7 @@ export default async function InterviewerLayout({
             <Link
               href="/interviewer"
               aria-label="Rekap hasil"
-              title="Rekap hasil"
+              title="Rekap semua hasil observasi"
               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 sm:px-3"
             >
               <Table2 size={16} aria-hidden="true" />

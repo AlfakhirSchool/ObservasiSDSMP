@@ -57,9 +57,9 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
   }
 
   const quickLinks = [
-    { href: "/interviewer/raport-sd", label: "Isi Raport SD", desc: "Nilai 20 indikator per anak", icon: ClipboardList, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
-    { href: "/interviewer/sd", label: "Daftar Siswa SD", desc: "Catatan observasi SD", icon: Users, tone: "bg-orange-50 text-orange-700 ring-orange-200" },
-    { href: "/interviewer/smp", label: "Daftar Siswa SMP", desc: "Catatan wawancara SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
+    { href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Daftar observasi & kuesioner orang tua SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
+    { href: "/interviewer/raport-sd", label: "Raport Observasi SD", desc: "Penilaian 20 indikator observasi anak SD", icon: ClipboardList, tone: "bg-amber-50 text-amber-800 ring-amber-200" },
+    { href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara siswa & hasil tes akademik SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
   ]
 
   return (
@@ -88,24 +88,29 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         description="Satu baris per siswa, satu kolom per pertanyaan atau indikator. Bisa difilter, dicari, dan diunduh ke Excel."
       />
 
-      {/* Menu cepat */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {quickLinks.map(({ href, label, desc, icon: Icon, tone }) => (
-          <Link
-            key={href}
-            href={href}
-            className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-          >
-            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset", tone)}>
-              <Icon size={18} aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900">{label}</span>
-              <span className="block truncate text-xs text-slate-500">{desc}</span>
-            </span>
-            <ChevronRight size={16} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" aria-hidden="true" />
-          </Link>
-        ))}
+      {/* Menu cepat pemisahan koreksi SD vs SMP */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Pilihan Menu Koreksi (SD & SMP Terpisah):
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {quickLinks.map(({ href, label, desc, icon: Icon, tone }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            >
+              <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset", tone)}>
+                <Icon size={18} aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900">{label}</span>
+                <span className="block truncate text-xs text-slate-500">{desc}</span>
+              </span>
+              <ChevronRight size={16} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Pilihan tabel */}

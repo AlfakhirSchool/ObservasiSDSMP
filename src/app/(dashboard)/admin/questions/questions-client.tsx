@@ -188,34 +188,59 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Segmented<Level>
-          label="Jenjang"
-          value={activeLevel}
-          onChange={(level) => {
-            setActiveLevel(level)
-            if (level === "SD") setActiveCategory("ORANG TUA")
-          }}
-          options={[
-            { value: "SD", label: "Unit SD", count: forLevel("SD").length },
-            { value: "SMP", label: "Unit SMP", count: forLevel("SMP").length },
-          ]}
-        />
-        <Segmented<Category>
-          label="Target responden"
-          value={activeCategory}
-          onChange={setActiveCategory}
-          options={[
-            { value: "ORANG TUA", label: "Orang Tua", count: parentCount },
-            {
-              value: "SISWA",
-              label: "Calon Siswa",
-              count: studentCount,
-              disabled: activeLevel === "SD",
-              disabledHint: "Hanya tersedia untuk Unit SMP",
-            },
-          ]}
-        />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Segmented<Level>
+            label="Jenjang"
+            value={activeLevel}
+            onChange={(level) => {
+              setActiveLevel(level)
+              if (level === "SD") setActiveCategory("ORANG TUA")
+            }}
+            options={[
+              { value: "SD", label: "Unit SD", count: forLevel("SD").length },
+              { value: "SMP", label: "Unit SMP", count: forLevel("SMP").length },
+            ]}
+          />
+          <Segmented<Category>
+            label="Target responden"
+            value={activeCategory}
+            onChange={setActiveCategory}
+            options={[
+              { value: "ORANG TUA", label: "Orang Tua", count: parentCount },
+              {
+                value: "SISWA",
+                label: "Calon Siswa",
+                count: studentCount,
+                disabled: activeLevel === "SD",
+                disabledHint: "Hanya tersedia untuk Unit SMP",
+              },
+            ]}
+          />
+        </div>
+
+        {/* Banner pembeda agar tidak membingungkan admin & pewawancara */}
+        {activeLevel === "SD" ? (
+          <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-2.5 text-xs text-orange-950 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-200 text-orange-800 font-bold">SD</span>
+              <span>
+                <strong>Soal Observasi Unit SD:</strong> Khusus kuesioner orang tua calon siswa SD. Terpisah sepenuhnya dari soal SMP.
+              </span>
+            </div>
+            <span className="font-semibold text-orange-800">{forLevel("SD").length} Soal Aktif</span>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-teal-200 bg-teal-50/80 px-4 py-2.5 text-xs text-teal-950 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-200 text-teal-800 font-bold">SMP</span>
+              <span>
+                <strong>Soal Observasi Unit SMP:</strong> Terdiri dari kuesioner orang tua dan wawancara calon siswa SMP.
+              </span>
+            </div>
+            <span className="font-semibold text-teal-800">{forLevel("SMP").length} Soal Aktif</span>
+          </div>
+        )}
       </div>
 
       {/* Question list */}

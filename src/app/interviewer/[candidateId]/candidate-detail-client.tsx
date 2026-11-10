@@ -380,9 +380,23 @@ export default function CandidateDetailClient({
           <section className={CARD_CLASS}>
             <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Catatan observasi</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-slate-900">
+                    {candidate.level === "SD" ? "Catatan Observasi SD" : "Catatan Wawancara SMP"}
+                  </h2>
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold uppercase text-white"
+                    style={{ backgroundColor: unitColor }}
+                  >
+                    Unit {candidate.level}
+                  </span>
+                </div>
                 <p className="mt-0.5 text-sm text-slate-500">
-                  {isLocked ? "Catatan sudah dikirim dan tidak dapat diubah" : "Isi hasil wawancara dan observasi"}
+                  {isLocked
+                    ? "Catatan sudah dikirim dan tidak dapat diubah"
+                    : candidate.level === "SD"
+                    ? "Isi pengamatan perilaku, kesiapan belajar, dan rekomendasi siswa SD"
+                    : "Isi hasil wawancara calon siswa & orang tua SMP"}
                 </p>
               </div>
               {isLocked && <Lock size={18} className="shrink-0 text-emerald-600" aria-hidden="true" />}
