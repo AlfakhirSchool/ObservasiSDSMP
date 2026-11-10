@@ -331,9 +331,9 @@ export default function CandidateDetailClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* LEFT COLUMN */}
-        <div className="space-y-6 lg:col-span-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* LEFT COLUMN (Data Siswa, Raport SD, Catatan Observasi) */}
+        <div className="space-y-6">
           {/* DATA SISWA */}
           <section className={CARD_CLASS}>
             <div className={CARD_HEADER_CLASS}>
@@ -498,21 +498,10 @@ export default function CandidateDetailClient({
               )}
             </div>
           </section>
-
-          {/* JAWABAN FORMULIR (Sekarang berada di bawah Catatan Observasi, rapi dan tidak memanjang ke bawah) */}
-          <FormAnswersViewer
-            parentAnswers={parentAnswers}
-            studentAnswers={studentAnswers}
-            isSd={candidate.level === "SD"}
-            onShowQr={() => {
-              setQrType("form_parent")
-              setShowQrDialog(true)
-            }}
-          />
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="space-y-6 lg:col-span-2">
+        {/* RIGHT COLUMN (Ringkasan AI & Jawaban Formulir - Bersebelahan dengan Catatan Observasi) */}
+        <div className="space-y-6">
           {/* RINGKASAN AI */}
           <section className={CARD_CLASS}>
             <div className={cn(CARD_HEADER_CLASS, "flex items-center gap-3")}>
@@ -558,6 +547,17 @@ export default function CandidateDetailClient({
               </button>
             </div>
           </section>
+
+          {/* JAWABAN FORMULIR (Ditempatkan bersebelahan / di samping Catatan Observasi) */}
+          <FormAnswersViewer
+            parentAnswers={parentAnswers}
+            studentAnswers={studentAnswers}
+            isSd={candidate.level === "SD"}
+            onShowQr={() => {
+              setQrType("form_parent")
+              setShowQrDialog(true)
+            }}
+          />
 
           {/* OBSERVASI AKADEMIK */}
           {showAcademic && (
