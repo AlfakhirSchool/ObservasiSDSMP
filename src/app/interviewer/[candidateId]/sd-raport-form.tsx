@@ -28,6 +28,7 @@ interface Props {
   initialAsalSekolah: string | null
   initialSdRaport: string | null
   canEdit: boolean
+  onSaved?: (updated: { asalSekolah: string; sdRaportRaw: string; filledCount: number }) => void
 }
 
 type CatatanMap = Partial<Record<SdAspekId, string>>
@@ -66,6 +67,7 @@ export default function SdRaportForm({
   initialAsalSekolah,
   initialSdRaport,
   canEdit,
+  onSaved,
 }: Props) {
   const router = useRouter()
   const [awal] = useState(() => parseSdRaport(initialSdRaport))
@@ -130,6 +132,11 @@ export default function SdRaportForm({
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan raport")
       setTersimpan(JSON.stringify(sekarang))
       toast.success("Raport SD berhasil disimpan")
+      onSaved?.({
+        asalSekolah: sekarang.asalSekolah,
+        sdRaportRaw: JSON.stringify({ nilai: sekarang.nilai, catatan: sekarang.catatan }),
+        filledCount: Object.keys(sekarang.nilai).length,
+      })
       router.refresh()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Terjadi kesalahan")

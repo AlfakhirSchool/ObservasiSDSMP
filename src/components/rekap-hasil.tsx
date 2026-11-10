@@ -61,19 +61,25 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         description="Hasil semua siswa dalam bentuk tabel seperti Excel: satu baris per nama, satu kolom per pertanyaan atau indikator."
         actions={
           ownerName ? (
-            <>
-              <span className="text-sm font-medium text-slate-500">Isi catatan observasi:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/interviewer/raport-sd"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              >
+                <ClipboardList size={16} className="text-amber-600" aria-hidden="true" />
+                Raport SD
+              </Link>
+              <span className="text-sm font-medium text-slate-500">Catatan:</span>
               {(["SD", "SMP"] as const).map((j) => (
                 <Link
                   key={j}
                   href={`/interviewer/${j.toLowerCase()}`}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-emerald-400 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition-colors hover:border-emerald-400 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
                 >
-                  <ClipboardList size={16} aria-hidden="true" />
                   Unit {j}
                 </Link>
               ))}
-            </>
+            </div>
           ) : undefined
         }
       />

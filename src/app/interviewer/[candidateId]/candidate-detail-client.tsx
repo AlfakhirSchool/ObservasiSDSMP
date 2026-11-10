@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import type { InterviewerNote, Prisma } from "@prisma/client"
@@ -13,6 +14,8 @@ import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
 import {
   ArrowLeft,
+  ArrowRight,
+  ClipboardList,
   Sparkles,
   Lock,
   RefreshCw,
@@ -401,15 +404,31 @@ export default function CandidateDetailClient({
             </div>
           </section>
 
-          {/* RAPORT OBSERVASI SD (bisa diubah kapan saja, tidak ikut terkunci bersama catatan) */}
+          {/* TAUTAN RAPORT OBSERVASI SD (dikelola di halaman terpisah khusus Raport SD) */}
           {candidate.level === "SD" && (
-            <SdRaportForm
-              candidateId={candidate.id}
-              candidateName={candidate.name}
-              initialAsalSekolah={candidate.originSchool}
-              initialSdRaport={candidate.sdRaport}
-              canEdit
-            />
+            <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+                    <ClipboardList size={20} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-semibold text-amber-950">Raport Observasi SD</h2>
+                    <p className="mt-0.5 text-xs sm:text-sm text-amber-800">
+                      Penilaian 20 indikator observasi (Kognitif, Motorik, Al-Qur&apos;an) dan asal sekolah dikelola pada halaman khusus Raport SD.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/interviewer/raport-sd?candidateId=${candidate.id}`}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 transition"
+                >
+                  <ClipboardList size={16} aria-hidden="true" />
+                  Isi Raport SD Siswa Ini
+                  <ArrowRight size={15} aria-hidden="true" />
+                </Link>
+              </div>
+            </section>
           )}
 
           {/* CATATAN OBSERVASI */}

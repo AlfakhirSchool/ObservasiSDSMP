@@ -4,7 +4,7 @@ import Link from "next/link"
 import { BrandLogo } from "@/components/layout/brand-logo"
 import { LogoutButton } from "@/components/layout/logout-button"
 import { UserChip } from "@/components/layout/user-chip"
-import { Table2 } from "lucide-react"
+import { Table2, ClipboardList } from "lucide-react"
 
 export default async function InterviewerLayout({
   children,
@@ -27,6 +27,15 @@ export default async function InterviewerLayout({
           </Link>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link
+              href="/interviewer/raport-sd"
+              aria-label="Raport SD"
+              title="Raport Observasi SD"
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold text-amber-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 sm:px-3"
+            >
+              <ClipboardList size={16} aria-hidden="true" />
+              <span>Raport SD</span>
+            </Link>
             <Link
               href="/interviewer"
               aria-label="Rekap hasil"
