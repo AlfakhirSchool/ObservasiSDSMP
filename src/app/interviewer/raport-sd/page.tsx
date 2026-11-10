@@ -56,6 +56,7 @@ export default async function RaportSdPage() {
     <RaportSdPageClient
       candidates={candidateList}
       observerName={session.user.name ?? ""}
+      homeHref={isAdmin ? "/admin" : "/interviewer/sd"}
     />
   )
 }

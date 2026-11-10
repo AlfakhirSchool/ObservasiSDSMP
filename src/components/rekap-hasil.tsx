@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ClipboardList } from "lucide-react"
+import { ArrowLeft, ClipboardList, Home } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { RekapFormClient } from "@/components/rekap-form-client"
 import { RekapSdClient } from "@/components/rekap-sd-client"
@@ -43,6 +43,8 @@ interface Props {
 
 export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD" }: Props) {
   const router = useRouter()
+  // Admin (tanpa ownerName) kembali ke dashboard admin; pewawancara ke daftar siswa SD.
+  const homeHref = ownerName ? "/interviewer/sd" : "/admin"
   const [jenjang, setJenjang] = useState<RekapJenjang>(initialJenjang)
   const [sumber, setSumber] = useState<Sumber>("orangtua")
 
@@ -60,7 +62,23 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         title="Rekap Hasil"
         description="Hasil semua siswa dalam bentuk tabel seperti Excel: satu baris per nama, satu kolom per pertanyaan atau indikator."
         actions={
-          ownerName ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => (window.history.length > 1 ? router.back() : router.push(homeHref))}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Kembali
+            </button>
+            <Link
+              href={homeHref}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+            >
+              <Home size={16} aria-hidden="true" />
+              Beranda
+            </Link>
+          {ownerName ? (
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/interviewer/raport-sd"
@@ -80,7 +98,8 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
                 </Link>
               ))}
             </div>
-          ) : undefined
+          ) : null}
+          </div>
         }
       />
 

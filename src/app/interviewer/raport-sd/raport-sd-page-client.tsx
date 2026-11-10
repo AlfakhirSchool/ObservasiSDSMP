@@ -37,9 +37,11 @@ export interface CandidateItem {
 interface Props {
   candidates: CandidateItem[]
   observerName: string
+  /** Tujuan tombol Beranda (admin: /admin, pewawancara: /interviewer/sd). */
+  homeHref?: string
 }
 
-export default function RaportSdPageClient({ candidates: initialCandidates, observerName }: Props) {
+export default function RaportSdPageClient({ candidates: initialCandidates, observerName, homeHref = "/interviewer/sd" }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const paramCandidateId = searchParams.get("candidateId")
@@ -139,14 +141,14 @@ export default function RaportSdPageClient({ candidates: initialCandidates, obse
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => (window.history.length > 1 ? router.back() : router.push("/interviewer"))}
+              onClick={() => (window.history.length > 1 ? router.back() : router.push(homeHref))}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               <ArrowLeft size={16} aria-hidden="true" />
               Kembali
             </button>
             <Link
-              href="/interviewer"
+              href={homeHref}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             >
               <Home size={16} aria-hidden="true" />
