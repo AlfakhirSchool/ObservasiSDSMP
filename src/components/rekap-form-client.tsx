@@ -9,6 +9,7 @@ import { StatCard } from "@/components/ui/stat-card"
 import { filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue } from "@/lib/period"
 import type { RekapFormData, RekapFormRow } from "@/lib/rekap-form"
 import { cn } from "@/lib/utils"
+import { eksporRekapForm } from "@/lib/rekap-excel"
 
 /** Jawaban lebih panjang dari ini dipotong 3 baris dan dibuka penuh dengan klik. */
 const PANJANG_POTONG = 90
@@ -63,6 +64,23 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
   /** Pewawancara hanya boleh membuka detail siswanya sendiri; admin dan seluruh observer SD boleh membuka semua. */
   const canOpen = (r: RekapFormRow) => !ownerName || isSd || r.guru === ownerName
 
+  /**
+   * Lebar tiap kolom pertanyaan menyesuaikan isinya: jawaban pendek (mis. "Laki-laki") sempit,
+   * jawaban/judul panjang lebih lebar (maks. 360px) lalu dibungkus rapi ke baris berikutnya.
+   */
+  const lebarKolom = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const q of questions) {
+      let terpanjang = Math.ceil(q.text.length / 3) // judul boleh dibungkus ±3 baris
+      for (const r of visible) {
+        const v = r.jawaban[q.id]
+        if (v) terpanjang = Math.max(terpanjang, Math.min(v.length, 60))
+      }
+      out[q.id] = Math.max(140, Math.min(360, terpanjang * 7 + 28))
+    }
+    return out
+  }, [questions, visible])
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -85,6 +103,7 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
           status={status}
           onStatus={setStatus}
           searchLabel="Cari nama atau isi jawaban"
+          onExport={() => eksporRekapForm(data, visible, `${isSd ? "SD" : "SMP"}_Jawaban_${pengisi.replace(/\s+/g, "_")}`)}
         />
 
         {questions.length === 0 ? (
@@ -117,11 +136,10 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
                       key={q.id}
                       scope="col"
                       title={q.text}
-                      className="sticky top-0 z-20 min-w-[220px] max-w-[260px] border-b border-l border-slate-200 bg-slate-50 px-3 py-3 text-left align-bottom text-xs font-semibold leading-snug text-slate-600"
+                      style={{ width: lebarKolom[q.id], minWidth: lebarKolom[q.id], maxWidth: lebarKolom[q.id] }}
+                      className="sticky top-0 z-20 whitespace-normal break-words border-b border-l border-slate-200 bg-slate-50 px-3 py-3 text-left align-bottom text-xs font-semibold leading-snug text-slate-600"
                     >
-                      <span className="line-clamp-4">
-                        {i + 1}. {q.text}
-                      </span>
+                      {i + 1}. {q.text}
                     </th>
                   ))}
                 </tr>
@@ -129,7 +147,7 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
               <tbody>
                 {visible.map((r) => (
                   <tr key={r.id} className="group">
-                    <td className="sticky left-0 z-10 border-b border-r border-slate-100 bg-white px-3 py-2 align-top group-hover:bg-slate-50">
+                    <td className="sticky left-0 z-10 max-w-[260px] whitespace-normal break-words border-b border-r border-slate-100 bg-white px-3 py-2 align-top group-hover:bg-slate-50">
                       {canOpen(r) ? (
                         <Link href={`${detailBase}/${r.id}`} className="font-medium text-slate-900 underline-offset-2 hover:text-emerald-700 hover:underline">
                           {r.nama}
@@ -160,7 +178,11 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
                       const key = `${r.id}:${q.id}`
                       const terbuka = dibuka.has(key)
                       return (
-                        <td key={q.id} className="min-w-[220px] max-w-[260px] border-b border-l border-slate-100 px-3 py-2 align-top text-xs leading-snug text-slate-700 group-hover:bg-slate-50">
+                        <td
+                          key={q.id}
+                          style={{ width: lebarKolom[q.id], minWidth: lebarKolom[q.id], maxWidth: lebarKolom[q.id] }}
+                          className="border-b border-l border-slate-100 px-3 py-2 align-top text-xs leading-relaxed text-slate-700 group-hover:bg-slate-50"
+                        >
                           {!v ? (
                             <span className="text-slate-300">–</span>
                           ) : v.length > PANJANG_POTONG ? (
@@ -169,9 +191,12 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
                               aria-expanded={terbuka}
                               title={terbuka ? "Klik untuk menutup" : "Klik untuk membuka penuh"}
                               onClick={() => toggle(key)}
-                              className={cn("w-full whitespace-pre-wrap break-words text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40", !terbuka && "line-clamp-3")}
+                              className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
                             >
-                              {v}
+                              <span className={cn("block whitespace-pre-wrap break-words", !terbuka && "line-clamp-3")}>{v}</span>
+                              <span className="mt-1 inline-block text-[11px] font-semibold text-emerald-700 hover:underline">
+                                {terbuka ? "Tutup ▲" : "Lihat semua ▼"}
+                              </span>
                             </button>
                           ) : (
                             <span className="whitespace-pre-wrap break-words">{v}</span>

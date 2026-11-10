@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { CheckCircle, ClipboardList, RefreshCw, Save, Wand2 } from "lucide-react"
+import { CheckCircle, ClipboardList, RefreshCw, Save, Wand2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
@@ -119,6 +119,17 @@ export default function SdRaportForm({
       delete next[id]
       return next
     })
+
+  /** Batalkan semua perubahan yang belum disimpan, kembali ke isian terakhir yang tersimpan. */
+  const handleBatal = () => {
+    if (!dirty) return
+    if (!window.confirm("Batalkan semua perubahan yang belum disimpan?")) return
+    const simpan = JSON.parse(tersimpan) as ReturnType<typeof bentukSimpan>
+    setAsal(simpan.asalSekolah)
+    setNilai(simpan.nilai)
+    setCatatan(simpan.catatan)
+    toast("Perubahan dibatalkan")
+  }
 
   const handleSimpan = async () => {
     setSaving(true)
@@ -302,6 +313,16 @@ export default function SdRaportForm({
                 </span>
               )}
             </p>
+            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={handleBatal}
+              disabled={!dirty || saving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              <X size={16} aria-hidden="true" />
+              Batal
+            </button>
             <button
               type="button"
               onClick={handleSimpan}
@@ -315,6 +336,7 @@ export default function SdRaportForm({
               )}
               {saving ? "Menyimpan..." : "Simpan"}
             </button>
+            </div>
           </div>
         )}
       </div>

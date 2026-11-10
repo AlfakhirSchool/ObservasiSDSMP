@@ -1,6 +1,7 @@
 "use client"
 
-import { Search } from "lucide-react"
+import { useState } from "react"
+import { FileSpreadsheet, Search } from "lucide-react"
 import { PeriodFilter } from "@/components/ui/period-filter"
 import type { PeriodFilterValue, PeriodOption } from "@/lib/period"
 import { cn } from "@/lib/utils"
@@ -43,10 +44,25 @@ interface Props {
   status: StatusFilter
   onStatus: (value: StatusFilter) => void
   searchLabel: string
+  /** Bila diisi, tampil tombol "Unduh Excel" yang mengekspor baris yang sedang tampil. */
+  onExport?: () => void | Promise<void>
 }
 
 /** Baris penyaring di atas tabel rekap: periode, pencarian, guru, dan status pengisian. */
-export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus, guru, onGuru, status, onStatus, searchLabel }: Props) {
+export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus, guru, onGuru, status, onStatus, searchLabel, onExport }: Props) {
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    if (!onExport) return
+    setExporting(true)
+    try {
+      await onExport()
+    } catch (err) {
+      console.error(err)
+      alert("Gagal mengunduh Excel. Coba lagi.")
+    } finally {
+      setExporting(false)
+    }
+  }
   return (
     <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:flex-wrap sm:items-start">
       <PeriodFilter periods={periods} value={period} onChange={onPeriod} />
@@ -76,6 +92,17 @@ export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus,
           </option>
         ))}
       </select>
+      {onExport && (
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-wait disabled:opacity-60"
+        >
+          <FileSpreadsheet size={16} aria-hidden="true" />
+          {exporting ? "Menyiapkan..." : "Unduh Excel"}
+        </button>
+      )}
     </div>
   )
 }

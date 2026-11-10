@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
+  ArrowLeft,
+  Home,
   ClipboardList,
   Search,
   ChevronLeft,
@@ -135,11 +137,20 @@ export default function RaportSdPageClient({ candidates: initialCandidates, obse
         description="Halaman khusus pengisian dan penilaian 20 indikator observasi calon siswa SD. Pilih nama siswa untuk mulai menilai."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/interviewer"
+            <button
+              type="button"
+              onClick={() => (window.history.length > 1 ? router.back() : router.push("/interviewer"))}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Lihat Rekap Hasil
+              <ArrowLeft size={16} aria-hidden="true" />
+              Kembali
+            </button>
+            <Link
+              href="/interviewer"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <Home size={16} aria-hidden="true" />
+              Kembali ke Beranda
             </Link>
             <Link
               href="/interviewer/sd"

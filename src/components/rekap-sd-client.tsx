@@ -10,6 +10,7 @@ import { filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue 
 import { SD_ASPEK, SD_JUMLAH_INDIKATOR, aspekPredikat } from "@/lib/raport-sd"
 import type { RekapSdRow } from "@/lib/rekap-sd"
 import { cn } from "@/lib/utils"
+import { eksporRekapSd } from "@/lib/rekap-excel"
 
 /** Warna judul tiap kelompok aspek, supaya kolom mudah dikenali saat digulir. */
 const ASPEK_TONE = {
@@ -89,6 +90,7 @@ export function RekapSdClient({ rows, ownerName, detailBase }: Props) {
           status={status}
           onStatus={setStatus}
           searchLabel="Cari nama atau asal sekolah"
+          onExport={() => eksporRekapSd(visible)}
         />
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-100 px-4 py-2.5 text-xs text-slate-600">
