@@ -1,6 +1,5 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
-import Script from "next/script"
 import { Toaster } from "react-hot-toast"
 import ProgressBar from "@/components/providers/progress-bar"
 import "./globals.css"
@@ -29,14 +28,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body>
-        <Script
+      <head>
+        <script
           id="perf-guard"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
 (function() {
-  if (typeof window !== 'undefined' && window.performance && window.performance.measure) {
+  if (typeof window !== 'undefined' && window.performance && typeof window.performance.measure === 'function') {
     var _origMeasure = window.performance.measure.bind(window.performance);
     window.performance.measure = function(name, startOrOpts, end) {
       try {
@@ -60,6 +58,8 @@ export default function RootLayout({
             `,
           }}
         />
+      </head>
+      <body>
         <Suspense fallback={null}>
           <ProgressBar />
         </Suspense>

@@ -331,52 +331,102 @@ export default function CandidateDetailClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* LEFT COLUMN (Data Siswa, Raport SD, Catatan Observasi) */}
-        <div className="space-y-6">
-          {/* DATA SISWA */}
-          <section className={CARD_CLASS}>
-            <div className={CARD_HEADER_CLASS}>
-              <h2 className="text-base font-semibold text-slate-900">Data siswa</h2>
-            </div>
-            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-              {studentInfo.map((item) => (
-                <div key={item.label}>
-                  <dt className="text-sm text-slate-500">{item.label}</dt>
-                  <dd className="mt-0.5 text-sm font-medium text-slate-900">{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          {/* TAUTAN RAPORT OBSERVASI SD (dikelola di halaman terpisah khusus Raport SD) */}
-          {candidate.level === "SD" && (
-            <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-                    <ClipboardList size={20} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-semibold text-amber-950">Raport Observasi SD</h2>
-                    <p className="mt-0.5 text-xs sm:text-sm text-amber-800">
-                      Penilaian 20 indikator observasi (Kognitif, Motorik, Al-Qur&apos;an) dan asal sekolah dikelola pada halaman khusus Raport SD.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href={`/interviewer/raport-sd?candidateId=${candidate.id}`}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 transition"
-                >
-                  <ClipboardList size={16} aria-hidden="true" />
-                  Isi Raport SD Siswa Ini
-                  <ArrowRight size={15} aria-hidden="true" />
-                </Link>
+      {/* SECTION ATAS: DATA SISWA & RINGKASAN AI (BERDAMPINGAN) */}
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+        {/* DATA SISWA */}
+        <section className={CARD_CLASS}>
+          <div className={CARD_HEADER_CLASS}>
+            <h2 className="text-base font-semibold text-slate-900">Data siswa</h2>
+          </div>
+          <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+            {studentInfo.map((item) => (
+              <div key={item.label}>
+                <dt className="text-sm text-slate-500">{item.label}</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-900">{item.value}</dd>
               </div>
-            </section>
-          )}
+            ))}
+          </dl>
+        </section>
 
-          {/* CATATAN OBSERVASI (Disimpan di atas jawaban formulir orang tua) */}
+        {/* RINGKASAN AI */}
+        <section className={CARD_CLASS}>
+          <div className={cn(CARD_HEADER_CLASS, "flex items-center gap-3")}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+              <Sparkles size={18} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-slate-900">Ringkasan AI</h2>
+              <p className="text-sm text-slate-500">Dibuat otomatis dari jawaban formulir</p>
+            </div>
+          </div>
+          <div className="space-y-4 p-5">
+            {generatingSummary ? (
+              <div aria-live="polite" aria-busy="true">
+                <p className="mb-3 text-sm text-slate-500">Membuat ringkasan, mohon tunggu...</p>
+                <SkeletonSummary />
+              </div>
+            ) : summary ? (
+              <div
+                className="space-y-2 text-sm leading-relaxed text-slate-700 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-900 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_strong]:text-slate-900"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(summary) }}
+              />
+            ) : (
+              <EmptyState
+                icon={Sparkles}
+                title="Belum ada ringkasan"
+                description="Buat ringkasan AI untuk membantu membaca profil siswa dengan cepat."
+                className="py-6"
+              />
+            )}
+            <button
+              type="button"
+              onClick={handleGenerateSummary}
+              disabled={generatingSummary}
+              className={summary ? BTN_SECONDARY_FULL : BTN_PRIMARY_FULL}
+            >
+              {generatingSummary ? (
+                <RefreshCw size={16} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Sparkles size={16} aria-hidden="true" />
+              )}
+              {generatingSummary ? "Membuat ringkasan..." : summary ? "Buat ulang ringkasan" : "Buat ringkasan AI"}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      {/* SECTION TENGAH: TAUTAN RAPORT OBSERVASI SD (Jika jenjang SD) */}
+      {candidate.level === "SD" && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+                <ClipboardList size={20} aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-amber-950">Raport Observasi SD</h2>
+                <p className="mt-0.5 text-xs sm:text-sm text-amber-800">
+                  Penilaian 20 indikator observasi (Kognitif, Motorik, Al-Qur&apos;an) dan asal sekolah dikelola pada halaman khusus Raport SD.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/interviewer/raport-sd?candidateId=${candidate.id}`}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 transition"
+            >
+              <ClipboardList size={16} aria-hidden="true" />
+              Isi Raport SD Siswa Ini
+              <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* SECTION UTAMA BERDAMPINGAN: CATATAN OBSERVASI (KIRI) & JAWABAN FORMULIR (KANAN) */}
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        {/* KOLOM KIRI: CATATAN OBSERVASI */}
+        <div className="space-y-6">
+          {/* CATATAN OBSERVASI */}
           <section className={CARD_CLASS}>
             <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
               <div>
@@ -514,55 +564,9 @@ export default function CandidateDetailClient({
           </section>
         </div>
 
-        {/* RIGHT COLUMN (Ringkasan AI & Jawaban Formulir - Bersebelahan dengan Catatan Observasi) */}
+        {/* KOLOM KANAN: JAWABAN FORMULIR & OBSERVASI AKADEMIK */}
         <div className="space-y-6">
-          {/* RINGKASAN AI */}
-          <section className={CARD_CLASS}>
-            <div className={cn(CARD_HEADER_CLASS, "flex items-center gap-3")}>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                <Sparkles size={18} aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-slate-900">Ringkasan AI</h2>
-                <p className="text-sm text-slate-500">Dibuat otomatis dari jawaban formulir</p>
-              </div>
-            </div>
-            <div className="space-y-4 p-5">
-              {generatingSummary ? (
-                <div aria-live="polite" aria-busy="true">
-                  <p className="mb-3 text-sm text-slate-500">Membuat ringkasan, mohon tunggu...</p>
-                  <SkeletonSummary />
-                </div>
-              ) : summary ? (
-                <div
-                  className="space-y-2 text-sm leading-relaxed text-slate-700 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-900 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_strong]:text-slate-900"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(summary) }}
-                />
-              ) : (
-                <EmptyState
-                  icon={Sparkles}
-                  title="Belum ada ringkasan"
-                  description="Buat ringkasan AI untuk membantu membaca profil siswa dengan cepat."
-                  className="py-6"
-                />
-              )}
-              <button
-                type="button"
-                onClick={handleGenerateSummary}
-                disabled={generatingSummary}
-                className={summary ? BTN_SECONDARY_FULL : BTN_PRIMARY_FULL}
-              >
-                {generatingSummary ? (
-                  <RefreshCw size={16} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <Sparkles size={16} aria-hidden="true" />
-                )}
-                {generatingSummary ? "Membuat ringkasan..." : summary ? "Buat ulang ringkasan" : "Buat ringkasan AI"}
-              </button>
-            </div>
-          </section>
-
-          {/* JAWABAN FORMULIR (Ditempatkan bersebelahan / di samping Catatan Observasi) */}
+          {/* JAWABAN FORMULIR (Ditempatkan tepat di samping Catatan Observasi) */}
           <FormAnswersViewer
             parentAnswers={parentAnswers}
             studentAnswers={studentAnswers}
