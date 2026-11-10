@@ -37,11 +37,12 @@ export interface CandidateItem {
 interface Props {
   candidates: CandidateItem[]
   observerName: string
+  isAdmin?: boolean
   /** Tujuan tombol Beranda (admin: /admin, pewawancara: /interviewer/sd). */
   homeHref?: string
 }
 
-export default function RaportSdPageClient({ candidates: initialCandidates, observerName, homeHref = "/interviewer/sd" }: Props) {
+export default function RaportSdPageClient({ candidates: initialCandidates, observerName, isAdmin = false, homeHref = "/interviewer/sd" }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const paramCandidateId = searchParams.get("candidateId")
@@ -146,7 +147,7 @@ export default function RaportSdPageClient({ candidates: initialCandidates, obse
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         <Link href={homeHref} className="inline-flex items-center gap-1.5 font-medium text-slate-500 hover:text-emerald-700">
           <Home size={15} aria-hidden="true" />
-          Beranda
+          {isAdmin ? "Dashboard Admin" : "Daftar Siswa SD"}
         </Link>
         <ChevronRight size={14} className="text-slate-300" aria-hidden="true" />
         <span className="font-semibold text-slate-900">Raport Observasi SD</span>

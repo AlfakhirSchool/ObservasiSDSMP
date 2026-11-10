@@ -13,8 +13,7 @@ export default async function InterviewerLayout({
 }) {
   const session = await auth()
   if (!session) redirect("/login")
-  // Admin kembali ke dashboard admin; pewawancara ke daftar siswa SD.
-  const homeHref = session.user?.role?.startsWith("admin") ? "/admin" : "/interviewer/sd"
+  const isAdmin = session.user?.role?.startsWith("admin")
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
@@ -29,15 +28,17 @@ export default async function InterviewerLayout({
           </Link>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <Link
-              href={homeHref}
-              aria-label="Beranda"
-              title="Kembali ke beranda"
-              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 sm:px-3"
-            >
-              <Home size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">Beranda</span>
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                aria-label="Dashboard Admin"
+                title="Kembali ke Dashboard Administrator"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600/90 px-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:px-3"
+              >
+                <Home size={15} aria-hidden="true" />
+                <span className="hidden sm:inline">Dashboard Admin</span>
+              </Link>
+            )}
             <Link
               href="/interviewer/raport-sd"
               aria-label="Raport SD"

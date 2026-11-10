@@ -141,7 +141,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
             >
               <ChevronLeft size={16} aria-hidden="true" />
-              Kembali ke Beranda
+              Lihat Rekap Hasil
             </Link>
             {unit === "SD" && (
               <Link

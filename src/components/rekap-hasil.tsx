@@ -43,8 +43,8 @@ interface Props {
 
 export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD" }: Props) {
   const router = useRouter()
-  // Admin (tanpa ownerName) kembali ke dashboard admin; pewawancara ke daftar siswa SD.
-  const homeHref = ownerName ? "/interviewer/sd" : "/admin"
+  const isAdmin = !ownerName
+  const homeHref = isAdmin ? "/admin" : "/interviewer/sd"
   const [jenjang, setJenjang] = useState<RekapJenjang>(initialJenjang)
   const [sumber, setSumber] = useState<Sumber>("orangtua")
 
@@ -77,7 +77,7 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         <Link href={homeHref} className="inline-flex items-center gap-1.5 font-medium text-slate-500 hover:text-emerald-700">
           <Home size={15} aria-hidden="true" />
-          Beranda
+          {isAdmin ? "Dashboard Admin" : "Daftar Siswa"}
         </Link>
         <ChevronRight size={14} className="text-slate-300" aria-hidden="true" />
         <span className="font-semibold text-slate-900">Rekap Hasil</span>
