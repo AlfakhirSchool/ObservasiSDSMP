@@ -13,7 +13,6 @@ import {
   ChevronRight,
   ArrowRight,
   UserCheck,
-  ClipboardList,
 } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { StatCard } from "@/components/ui/stat-card"
@@ -143,15 +142,6 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
               <ChevronLeft size={16} aria-hidden="true" />
               Lihat Rekap Hasil
             </Link>
-            {unit === "SD" && (
-              <Link
-                href="/interviewer/raport-sd"
-                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 transition"
-              >
-                <ClipboardList size={16} aria-hidden="true" />
-                Halaman Raport SD
-              </Link>
-            )}
             {lockedInterviewer && (
               <p className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
                 <UserCheck size={16} className="text-emerald-600" aria-hidden="true" />
@@ -322,16 +312,6 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1.5">
-                        {unit === "SD" && (
-                          <Link
-                            href={`/interviewer/raport-sd?candidateId=${c.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition"
-                          >
-                            <ClipboardList size={13} aria-hidden="true" />
-                            Raport
-                          </Link>
-                        )}
                         <Link
                           href={`/interviewer/${c.id}`}
                           onClick={(e) => e.stopPropagation()}

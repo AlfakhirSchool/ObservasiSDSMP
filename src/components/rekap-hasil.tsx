@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ChevronRight, ClipboardList, GraduationCap, Home, Users } from "lucide-react"
+import { ArrowLeft, ChevronRight, GraduationCap, Home, Users } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { RekapFormClient } from "@/components/rekap-form-client"
 import { RekapSdClient } from "@/components/rekap-sd-client"
@@ -18,7 +18,6 @@ type Sumber = "orangtua" | "siswa" | "raport"
 const SUMBER: Record<RekapJenjang, { id: Sumber; label: string }[]> = {
   SD: [
     { id: "orangtua", label: "Jawaban orang tua" },
-    { id: "raport", label: "Raport observasi" },
   ],
   SMP: [
     { id: "orangtua", label: "Jawaban orang tua" },
@@ -58,7 +57,6 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
 
   const quickLinks = [
     { href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Daftar observasi & kuesioner orang tua SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
-    { href: "/interviewer/raport-sd", label: "Raport Observasi SD", desc: "Penilaian 20 indikator observasi anak SD", icon: ClipboardList, tone: "bg-amber-50 text-amber-800 ring-amber-200" },
     { href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara siswa & hasil tes akademik SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
   ]
 
