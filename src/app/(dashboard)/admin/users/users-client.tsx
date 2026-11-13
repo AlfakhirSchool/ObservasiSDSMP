@@ -3,14 +3,14 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { Copy, KeyRound, Plus, Trash2, UserCog, Wand2 } from "lucide-react"
+import { Copy, KeyRound, Pencil, Plus, Trash2, UserCog, Wand2 } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { INTERVIEWERS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
-import { createUser, deleteUser, resetUserPassword } from "@/lib/user-actions"
+import { createUser, deleteUser, resetUserPassword, updateUserName } from "@/lib/user-actions"
 
 type Role = "ADMIN" | "ADMIN_SD" | "ADMIN_SMP" | "INTERVIEWER"
 
@@ -76,6 +76,10 @@ export default function UsersClient({ users, currentUserId }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null)
   const [deleteError, setDeleteError] = useState("")
 
+  const [editTarget, setEditTarget] = useState<UserRow | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editError, setEditError] = useState("")
+
   const openAdd = () => {
     setForm({ name: "", username: "", role: "INTERVIEWER", password: generatePassword() })
     setError("")
@@ -115,6 +119,28 @@ export default function UsersClient({ users, currentUserId }: Props) {
       }
       setCredential({ title: "Password diganti", username: resetTarget.username, password: resetPassword })
       setResetTarget(null)
+    })
+  }
+
+  const openEdit = (user: UserRow) => {
+    setEditTarget(user)
+    setEditName(user.name)
+    setEditError("")
+  }
+
+  const submitEdit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editTarget) return
+    setEditError("")
+    startTransition(async () => {
+      const res = await updateUserName(editTarget.id, editName)
+      if (!res.ok) {
+        setEditError(res.error)
+        return
+      }
+      toast.success("Nama diperbarui")
+      setEditTarget(null)
+      router.refresh()
     })
   }
 
@@ -182,6 +208,15 @@ export default function UsersClient({ users, currentUserId }: Props) {
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDate(u.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(u)}
+                          className={ICON_BTN}
+                          aria-label={`Ubah nama ${u.name}`}
+                          title="Ubah nama"
+                        >
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => openReset(u)}
@@ -306,6 +341,41 @@ export default function UsersClient({ users, currentUserId }: Props) {
           </DialogContent>
           <DialogFooter className="border-t border-slate-100 pt-4">
             <button type="button" onClick={() => setShowAdd(false)} className={BTN_SECONDARY}>Batal</button>
+            <button type="submit" disabled={pending} className={BTN_PRIMARY}>
+              {pending ? "Menyimpan..." : "Simpan"}
+            </button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+
+      {/* Ubah nama */}
+      <Dialog open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <form onSubmit={submitEdit}>
+          <DialogHeader className="border-b border-slate-100 px-6 py-4">
+            <DialogTitle>Ubah Nama</DialogTitle>
+          </DialogHeader>
+          <DialogContent className="space-y-4 pt-5">
+            <Input
+              id="edit-name"
+              label="Nama lengkap"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+              autoComplete="off"
+            />
+            {editTarget?.role === "INTERVIEWER" && (
+              <p className="text-xs text-slate-500">
+                Untuk pewawancara, nama harus sama persis dengan nama di kolom Pewawancara pada data siswa agar siswanya tampil.
+              </p>
+            )}
+            {editError && (
+              <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {editError}
+              </p>
+            )}
+          </DialogContent>
+          <DialogFooter className="border-t border-slate-100 pt-4">
+            <button type="button" onClick={() => setEditTarget(null)} className={BTN_SECONDARY}>Batal</button>
             <button type="submit" disabled={pending} className={BTN_PRIMARY}>
               {pending ? "Menyimpan..." : "Simpan"}
             </button>

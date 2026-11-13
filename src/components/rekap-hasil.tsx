@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ChevronRight, GraduationCap, Home, Users } from "lucide-react"
+import { ArrowLeft, BookOpen, ChevronRight, GraduationCap, Home, Users } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { RekapFormClient } from "@/components/rekap-form-client"
 import { RekapSdClient } from "@/components/rekap-sd-client"
@@ -58,6 +58,7 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
   const quickLinks = [
     { href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Daftar observasi & kuesioner orang tua SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
     { href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara siswa & hasil tes akademik SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
+    { href: "/interviewer/quran", label: "Observasi Al-Qur'an", desc: "Nilai tes baca A / B / C siswa SD & SMP", icon: BookOpen, tone: "bg-sky-50 text-sky-800 ring-sky-200" },
   ]
 
   return (

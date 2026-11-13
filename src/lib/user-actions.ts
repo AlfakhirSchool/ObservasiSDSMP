@@ -64,6 +64,22 @@ export async function resetUserPassword(id: string, password: string): Promise<A
   return { ok: true }
 }
 
+const NameSchema = z.string().trim().min(2, "Nama minimal 2 karakter").max(100, "Nama maksimal 100 karakter")
+
+export async function updateUserName(id: string, name: string): Promise<ActionResult> {
+  if (!(await requireAdmin())) return { ok: false, error: "Hanya admin pusat yang dapat mengubah nama" }
+
+  const parsed = NameSchema.safeParse(name)
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { username: true, name: true } })
+  const updated = await prisma.user.updateMany({ where: { id, username: { not: null } }, data: { name: parsed.data } })
+  if (updated.count === 0) return { ok: false, error: "Pengguna tidak ditemukan" }
+  await logActivity({ action: "USER_NAMA", targetType: "pengguna", targetId: id, targetLabel: target?.username ?? parsed.data, detail: `${target?.name ?? "-"} → ${parsed.data}` })
+  revalidatePath("/admin/users")
+  return { ok: true }
+}
+
 export async function deleteUser(id: string): Promise<ActionResult> {
   const session = await requireAdmin()
   if (!session) return { ok: false, error: "Hanya admin pusat yang dapat menghapus pengguna" }

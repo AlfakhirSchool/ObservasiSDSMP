@@ -62,6 +62,14 @@ export default async function InterviewerLayout({
                 <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
                 <span>Koreksi SMP</span>
               </Link>
+              <Link
+                href="/interviewer/quran"
+                title="Observasi Al-Qur'an Calon Siswa"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-sky-200 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-sky-400" aria-hidden="true" />
+                <span>Al-Qur&apos;an</span>
+              </Link>
             </div>
 
             <Link

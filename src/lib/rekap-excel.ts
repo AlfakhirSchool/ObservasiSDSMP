@@ -189,3 +189,19 @@ export async function eksporRekapSd(rows: RekapSdRow[]) {
     freezeCols: 2,
   })
 }
+
+/** Ekspor rekap observasi Al-Qur'an sesuai baris yang sedang tampil. */
+export async function eksporRekapQuran(rows: { nama: string; level: string; gelombang: number; nilai: string | null; catatan: string; dinilaiOleh: string }[]) {
+  const header = ["No", "Nama", "Jenjang", "Gelombang", "Nilai (A/B/C)", "Catatan", "Dinilai oleh"]
+  const body: Cell[][] = rows.map((r, idx) => [idx + 1, r.nama, r.level, r.gelombang, r.nilai ?? "", r.catatan, r.dinilaiOleh])
+
+  await unduhXlsx({
+    fileName: "Rekap_Observasi_Al-Quran",
+    sheetName: "Al-Quran",
+    header,
+    rows: body,
+    centerCols: [0, 2, 3, 4],
+    fixedWidths: { 0: 5, 5: 50 },
+    freezeCols: 2,
+  })
+}

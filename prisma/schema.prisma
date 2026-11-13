@@ -34,6 +34,10 @@ model Candidate {
   parentPhone         String?
   correctedName       String?
   academicYear        String?
+  /// Observasi Al-Qur'an (tes baca 2 halaman): A/B/C. Null = belum dinilai. Lihat src/lib/quran.ts.
+  quranNilai          String?
+  quranCatatan        String?
+  quranDinilaiOleh    String?
   gelombang           Int               @default(1)
   nim                 String?
   originSchool        String?
