@@ -11,14 +11,22 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic"
 
-export default async function QuranPage() {
+interface Props {
+  searchParams: Promise<{ unit?: string }>
+}
+
+export default async function QuranPage({ searchParams }: Props) {
   const session = await auth()
   if (!session) redirect("/login")
 
   const isAdmin = session.user.role.startsWith("admin")
   if (session.user.role !== "interviewer" && !isAdmin) redirect("/login")
 
+  const { unit } = await searchParams
+  const activeUnit: "SD" | "SMP" = unit?.toUpperCase() === "SMP" ? "SMP" : "SD"
+
   const candidates = await prisma.candidate.findMany({
+    where: { level: activeUnit },
     select: {
       id: true,
       name: true,
@@ -44,5 +52,12 @@ export default async function QuranPage() {
     dinilaiOleh: c.quranDinilaiOleh ?? "",
   }))
 
-  return <QuranPageClient rows={rows} homeHref={isAdmin ? "/admin" : "/interviewer/sd"} isAdmin={isAdmin} />
+  return (
+    <QuranPageClient
+      rows={rows}
+      activeUnit={activeUnit}
+      homeHref={isAdmin ? "/admin" : activeUnit === "SD" ? "/interviewer/sd" : "/interviewer/smp"}
+      isAdmin={isAdmin}
+    />
+  )
 }

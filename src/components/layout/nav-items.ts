@@ -18,7 +18,8 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
 ]
 
 export const INTERVIEWER_NAV_ITEMS: { href: string; label: string; dot: string }[] = [
-  { href: "/interviewer/sd", label: "SD", dot: "bg-orange-400" },
-  { href: "/interviewer/smp", label: "SMP", dot: "bg-emerald-400" },
-  { href: "/interviewer/quran", label: "Al-Qur'an", dot: "bg-sky-400" },
+  { href: "/interviewer/sd", label: "Koreksi SD", dot: "bg-orange-400" },
+  { href: "/interviewer/quran?unit=SD", label: "Al-Qur'an SD", dot: "bg-orange-300" },
+  { href: "/interviewer/smp", label: "Koreksi SMP", dot: "bg-emerald-400" },
+  { href: "/interviewer/quran?unit=SMP", label: "Al-Qur'an SMP", dot: "bg-emerald-300" },
 ]

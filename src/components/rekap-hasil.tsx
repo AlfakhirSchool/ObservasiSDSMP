@@ -38,13 +38,16 @@ interface Props {
   detailBase: string
   /** Jenjang yang dibuka pertama kali (mis. jenjang tempat pewawancara paling banyak punya siswa). */
   initialJenjang?: RekapJenjang
+  /** Kunci tampilan ke satu unit saja (SD atau SMP). Pilihan jenjang lain dan link unit lain akan disembunyikan. */
+  lockedUnit?: RekapJenjang
 }
 
-export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD" }: Props) {
+export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD", lockedUnit }: Props) {
   const router = useRouter()
   const isAdmin = !ownerName
-  const homeHref = isAdmin ? "/admin" : "/interviewer/sd"
-  const [jenjang, setJenjang] = useState<RekapJenjang>(initialJenjang)
+  const activeJenjang = lockedUnit ?? initialJenjang
+  const homeHref = isAdmin ? "/admin" : lockedUnit === "SD" ? "/interviewer/sd" : lockedUnit === "SMP" ? "/interviewer/smp" : "/interviewer"
+  const [jenjang, setJenjang] = useState<RekapJenjang>(activeJenjang)
   const [sumber, setSumber] = useState<Sumber>("orangtua")
 
   // Guru mengisi sepanjang hari; segarkan data berkala (berhenti saat tab tersembunyi).
@@ -55,11 +58,13 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
     setSumber("orangtua")
   }
 
-  const quickLinks = [
-    { href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Daftar observasi & kuesioner orang tua SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
-    { href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara siswa & hasil tes akademik SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
-    { href: "/interviewer/quran", label: "Observasi Al-Qur'an", desc: "Nilai tes baca A / B / C siswa SD & SMP", icon: BookOpen, tone: "bg-sky-50 text-sky-800 ring-sky-200" },
+  const allQuickLinks = [
+    { unit: "SD", href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Observasi & kuesioner siswa SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
+    { unit: "SD", href: "/interviewer/quran?unit=SD", label: "Al-Qur'an SD", desc: "Tes baca Al-Qur'an siswa SD", icon: BookOpen, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
+    { unit: "SMP", href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara & hasil tes SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
+    { unit: "SMP", href: "/interviewer/quran?unit=SMP", label: "Al-Qur'an SMP", desc: "Tes baca Al-Qur'an siswa SMP", icon: BookOpen, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
   ]
+  const quickLinks = lockedUnit ? allQuickLinks.filter((l) => l.unit === lockedUnit) : allQuickLinks
 
   return (
     <div className="space-y-6">
@@ -83,8 +88,12 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
       </nav>
 
       <PageHeader
-        title="Rekap Hasil"
-        description="Satu baris per siswa, satu kolom per pertanyaan atau indikator. Bisa difilter, dicari, dan diunduh ke Excel."
+        title={lockedUnit ? `Rekap Hasil — Unit ${lockedUnit}` : "Rekap Hasil"}
+        description={
+          lockedUnit
+            ? `Hasil kuesioner dan observasi khusus calon siswa ${lockedUnit}.`
+            : "Satu baris per siswa, satu kolom per pertanyaan atau indikator. Bisa difilter, dicari, dan diunduh ke Excel."
+        }
       />
 
       {/* Menu cepat pemisahan koreksi SD vs SMP */}
@@ -92,7 +101,7 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
           Pilihan Menu Koreksi (SD & SMP Terpisah):
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {quickLinks.map(({ href, label, desc, icon: Icon, tone }) => (
             <Link
               key={href}
@@ -114,24 +123,28 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
 
       {/* Pilihan tabel */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:gap-6">
-        <div className="flex items-center gap-3">
-          <span className="w-16 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:w-auto">Jenjang</span>
-          <div role="tablist" aria-label="Jenjang" className="inline-flex rounded-xl bg-slate-100 p-1">
-            {(["SD", "SMP"] as const).map((j) => (
-              <button
-                key={j}
-                type="button"
-                role="tab"
-                aria-selected={jenjang === j}
-                onClick={() => pilihJenjang(j)}
-                className={cn(TAB_BASE, jenjang === j ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}
-              >
-                {j}
-              </button>
-            ))}
-          </div>
-        </div>
-        <span className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden="true" />
+        {!lockedUnit && (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="w-16 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:w-auto">Jenjang</span>
+              <div role="tablist" aria-label="Jenjang" className="inline-flex rounded-xl bg-slate-100 p-1">
+                {(["SD", "SMP"] as const).map((j) => (
+                  <button
+                    key={j}
+                    type="button"
+                    role="tab"
+                    aria-selected={jenjang === j}
+                    onClick={() => pilihJenjang(j)}
+                    className={cn(TAB_BASE, jenjang === j ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}
+                  >
+                    {j}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <span className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden="true" />
+          </>
+        )}
         <div className="flex items-center gap-3">
           <span className="w-16 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:w-auto">Data</span>
           <div role="tablist" aria-label="Sumber data" className="inline-flex rounded-xl bg-slate-100 p-1">

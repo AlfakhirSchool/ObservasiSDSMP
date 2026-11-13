@@ -65,7 +65,7 @@ export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus,
   }
   return (
     <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:flex-wrap sm:items-start">
-      <PeriodFilter periods={periods} value={period} onChange={onPeriod} />
+      <PeriodFilter className="w-full sm:w-auto" periods={periods} value={period} onChange={onPeriod} />
       <div className="relative min-w-0 flex-1 sm:min-w-[220px]">
         <Search size={16} className="pointer-events-none absolute left-3 top-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
         <input
@@ -77,7 +77,7 @@ export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus,
           className={cn(CONTROL, "w-full pl-9")}
         />
       </div>
-      <select aria-label="Filter guru" value={guru} onChange={(e) => onGuru(e.target.value)} className={CONTROL}>
+      <select aria-label="Filter guru" value={guru} onChange={(e) => onGuru(e.target.value)} className={cn(CONTROL, "w-full sm:w-auto")}>
         <option value="">Semua guru</option>
         {gurus.map((g) => (
           <option key={g} value={g}>
@@ -85,7 +85,7 @@ export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus,
           </option>
         ))}
       </select>
-      <select aria-label="Filter status pengisian" value={status} onChange={(e) => onStatus(e.target.value as StatusFilter)} className={CONTROL}>
+      <select aria-label="Filter status pengisian" value={status} onChange={(e) => onStatus(e.target.value as StatusFilter)} className={cn(CONTROL, "w-full sm:w-auto")}>
         {STATUS_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -97,7 +97,7 @@ export function RekapToolbar({ periods, period, onPeriod, query, onQuery, gurus,
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
         >
           <FileSpreadsheet size={16} aria-hidden="true" />
           {exporting ? "Menyiapkan..." : "Unduh Excel"}

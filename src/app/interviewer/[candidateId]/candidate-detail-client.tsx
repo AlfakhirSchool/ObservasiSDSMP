@@ -31,7 +31,17 @@ import {
   UserRound,
   X,
   XCircle,
+  BookOpen,
+  Save,
 } from "lucide-react"
+import {
+  isQuranNilai,
+  QURAN_CATATAN_MAKS,
+  QURAN_NILAI_KETERANGAN,
+  QURAN_NILAI_TONE,
+  QURAN_NILAI_URUT,
+  type QuranNilai,
+} from "@/lib/quran"
 
 export type CandidateDetail = Prisma.CandidateGetPayload<{
   include: {
@@ -152,6 +162,36 @@ export default function CandidateDetailClient({
   const [summary, setSummary] = useState<string | null>(savedSummary)
   const [generatingSummary, setGeneratingSummary] = useState(false)
   const [origin, setOrigin] = useState("")
+
+  // State observasi Al-Qur'an
+  const [quranNilai, setQuranNilai] = useState<QuranNilai | null>(
+    isQuranNilai(candidate.quranNilai) ? candidate.quranNilai : null
+  )
+  const [quranCatatan, setQuranCatatan] = useState(candidate.quranCatatan ?? "")
+  const [savingQuran, setSavingQuran] = useState(false)
+
+  const simpanQuran = async () => {
+    setSavingQuran(true)
+    try {
+      const res = await fetch("/api/quran", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          nilai: quranNilai,
+          catatan: quranCatatan.trim(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? "Gagal menyimpan")
+      toast.success("Observasi Al-Qur'an berhasil disimpan!")
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan")
+    } finally {
+      setSavingQuran(false)
+    }
+  }
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -285,11 +325,11 @@ export default function CandidateDetailClient({
           badge={
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push(candidate.level === "SD" ? "/interviewer/sd" : "/interviewer/smp")}
               className="inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
             >
               <ArrowLeft size={16} aria-hidden="true" />
-              Kembali ke daftar
+              Kembali ke daftar {candidate.level}
             </button>
           }
           title={candidate.name}
@@ -531,6 +571,91 @@ export default function CandidateDetailClient({
                   </fieldset>
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* OBSERVASI AL-QUR'AN LANGSUNG DI HALAMAN SISWA */}
+          <section className={CARD_CLASS}>
+            <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-slate-900">Observasi Al-Qur&apos;an</h2>
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold uppercase text-white"
+                    style={{ backgroundColor: unitColor }}
+                  >
+                    Unit {candidate.level}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Tes baca 2 halaman (A: kedua hal benar · B: hal 1 benar, hal 2 salah · C: hal 1 salah)
+                </p>
+              </div>
+              <BookOpen size={18} className="shrink-0 text-sky-600" aria-hidden="true" />
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">Nilai tes baca</p>
+                <div role="group" aria-label="Nilai Al-Qur'an" className="grid grid-cols-3 gap-2">
+                  {QURAN_NILAI_URUT.map((n) => {
+                    const aktif = quranNilai === n
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        aria-pressed={aktif}
+                        onClick={() => setQuranNilai(aktif ? null : n)}
+                        className={cn(
+                          "min-h-11 rounded-xl border text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                          aktif ? QURAN_NILAI_TONE[n] : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {quranNilai ? `${quranNilai}: ${QURAN_NILAI_KETERANGAN[quranNilai]}` : "Pilih nilai A, B, atau C"}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="detail-quran-catatan" className="text-sm font-medium text-slate-700">
+                  Catatan penguji (opsional)
+                </label>
+                <textarea
+                  id="detail-quran-catatan"
+                  value={quranCatatan}
+                  maxLength={QURAN_CATATAN_MAKS}
+                  onChange={(e) => setQuranCatatan(e.target.value)}
+                  placeholder="Catatan kelancaran, makhraj, tajwid..."
+                  className="min-h-[80px] w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+
+              {candidate.quranDinilaiOleh && (
+                <p className="text-xs text-slate-500">
+                  Terakhir dinilai oleh: <span className="font-semibold text-slate-700">{candidate.quranDinilaiOleh}</span>
+                </p>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  disabled={
+                    savingQuran ||
+                    (quranNilai === (isQuranNilai(candidate.quranNilai) ? candidate.quranNilai : null) &&
+                      quranCatatan.trim() === (candidate.quranCatatan ?? "").trim())
+                  }
+                  onClick={simpanQuran}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Save size={14} aria-hidden="true" />
+                  {savingQuran ? "Menyimpan…" : "Simpan Nilai Al-Qur'an"}
+                </button>
+              </div>
             </div>
           </section>
         </div>

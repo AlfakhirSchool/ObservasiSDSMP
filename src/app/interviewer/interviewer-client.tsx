@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ArrowRight,
   UserCheck,
+  BookOpen,
+  Table2,
 } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { StatCard } from "@/components/ui/stat-card"
@@ -136,11 +138,18 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href="/interviewer"
+              href={`/interviewer/quran?unit=${unit}`}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
             >
-              <ChevronLeft size={16} aria-hidden="true" />
-              Lihat Rekap Hasil
+              <BookOpen size={16} className={unit === "SD" ? "text-orange-600" : "text-emerald-600"} aria-hidden="true" />
+              Al-Qur&apos;an {unit}
+            </Link>
+            <Link
+              href={`/interviewer/rekap?unit=${unit}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+            >
+              <Table2 size={16} className={unit === "SD" ? "text-orange-600" : "text-emerald-600"} aria-hidden="true" />
+              Rekap {unit}
             </Link>
             {lockedInterviewer && (
               <p className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
@@ -184,7 +193,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
             />
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="filter-date" className="text-sm font-medium text-slate-700">
             Tanggal masuk
           </label>
@@ -199,7 +208,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
             className={cn(FIELD_CLASS, "w-full sm:w-auto")}
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="filter-status" className="text-sm font-medium text-slate-700">
             Status observasi
           </label>
@@ -219,7 +228,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
             ))}
           </select>
         </div>
-        <PeriodFilter periods={periods} value={period} onChange={(v) => { setPeriod(v); setPage(1) }} />
+        <PeriodFilter className="w-full sm:w-auto" periods={periods} value={period} onChange={(v) => { setPeriod(v); setPage(1) }} />
         {hasActiveFilter && (
           <button
             type="button"
@@ -257,7 +266,49 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Tampilan HP: kartu per siswa */}
+          <ul className="divide-y divide-slate-100 md:hidden">
+            {paginated.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/interviewer/${c.id}?unit=${unit}`}
+                  className="block space-y-2 px-4 py-3.5 active:bg-slate-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-slate-900">{c.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {formatDate(c.createdAt)} · TA {c.academicYear ?? "-"} · Gelombang {c.gelombang}
+                      </p>
+                    </div>
+                    <ArrowRight size={16} className="mt-1 shrink-0 text-slate-400" aria-hidden="true" />
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Pewawancara:{" "}
+                    <span className="font-medium text-slate-800">
+                      {unit === "SD" ? "Semua Observer SD" : (c.selectedInterviewer || "Belum ditunjuk")}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {c.hasResponse ? (
+                      <span className={cn(PILL_BASE, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Formulir: Sudah diisi</span>
+                    ) : (
+                      <span className={cn(PILL_BASE, "bg-slate-100 text-slate-600 ring-slate-200")}>Formulir: Belum ada</span>
+                    )}
+                    {c.hasNote ? (
+                      <span className={cn(PILL_BASE, "bg-emerald-50 text-emerald-700 ring-emerald-200")}>Sudah dicatat</span>
+                    ) : c.hasResponse ? (
+                      <span className={cn(PILL_BASE, "bg-amber-50 text-amber-700 ring-amber-200")}>Perlu observasi</span>
+                    ) : null}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* Tampilan tablet/desktop: tabel */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-slate-50">
                 <tr className="border-b border-slate-200">
@@ -272,12 +323,12 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                 {paginated.map((c) => (
                   <tr
                     key={c.id}
-                    onClick={() => router.push(`/interviewer/${c.id}`)}
+                    onClick={() => router.push(`/interviewer/${c.id}?unit=${unit}`)}
                     className="cursor-pointer hover:bg-slate-50"
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{c.name}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{formatDate(c.createdAt)} · Gelombang {c.gelombang}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{formatDate(c.createdAt)} · TA {c.academicYear ?? "-"} · Gelombang {c.gelombang}</p>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -313,7 +364,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         <Link
-                          href={`/interviewer/${c.id}`}
+                          href={`/interviewer/${c.id}?unit=${unit}`}
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
                         >
@@ -327,6 +378,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Pagination */}

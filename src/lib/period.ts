@@ -49,6 +49,16 @@ export function listPeriods(items: PeriodFields[]): PeriodOption[] {
 
 export function filterByPeriod<T extends PeriodFields>(items: T[], value: PeriodFilterValue, periods: PeriodOption[]): T[] {
   if (value === PERIOD_ALL) return items
+  if (value.startsWith("year:")) {
+    const targetYear = value.slice(5)
+    return items.filter((item) => (item.academicYear ?? "-") === targetYear)
+  }
+  if (value === PERIOD_LATEST) {
+    const latestYear = periods[0]?.key.split("|")[0]
+    if (latestYear) {
+      return items.filter((item) => (item.academicYear ?? "-") === latestYear)
+    }
+  }
   const key = value === PERIOD_LATEST ? periods[0]?.key : value
   return key ? items.filter((item) => periodKey(item) === key) : items
 }
