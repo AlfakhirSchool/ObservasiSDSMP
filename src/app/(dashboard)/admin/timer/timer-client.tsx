@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/page-header"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { useTick } from "@/components/interview-timer"
+import { FinishedSummary } from "./timer-summary"
 import { cn } from "@/lib/utils"
 import {
   TIMER_MAX_SEC,
@@ -275,6 +276,8 @@ export default function TimerMonitorClient() {
           </div>
         )}
       </div>
+
+      <FinishedSummary />
     </div>
   )
 }

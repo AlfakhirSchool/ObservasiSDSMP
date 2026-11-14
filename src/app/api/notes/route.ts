@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { Prisma } from "@prisma/client"
+import { interviewSecondsFromRow } from "@/lib/interview-timer-server"
 
 const text = (message: string) => z.string().trim().min(1, message).max(5000, "Teks terlalu panjang (maks 5000 karakter)")
 
@@ -55,6 +56,15 @@ export async function POST(request: Request) {
     // jika dua permintaan masuk bersamaan. Catatan yang dibuka kuncinya oleh admin diperbarui (bukan dibuat baru);
     // updateMany dengan syarat isLocked=false menolak simpan ganda yang bersamaan.
     const existing = candidate.notes[0] ?? null
+    // Lama wawancara diambil dari timer di server milik penyimpan ini (null jika tanpa timer, mis. admin). Dihitung dari
+    // jam server, bukan kiriman klien. Gagal membaca tidak boleh menggagalkan penyimpanan catatan.
+    const timerRow = await prisma.interviewTimer
+      .findUnique({
+        where: { interviewerId_candidateId: { interviewerId: session.user.id, candidateId: validated.candidateId } },
+        select: { startedAt: true, elapsedMs: true },
+      })
+      .catch(() => null)
+    const interviewSeconds = timerRow ? interviewSecondsFromRow(timerRow, Date.now()) : null
     const noteData = {
       interviewerName: session.user.name || session.user.email || "",
       interviewerEmail: session.user.email || "",
@@ -65,6 +75,7 @@ export async function POST(request: Request) {
       otherNotes: validated.otherNotes || "",
       recommendation: validated.recommendation,
       isLocked: true,
+      ...(interviewSeconds !== null ? { interviewSeconds } : {}),
     }
     const note = await prisma.$transaction(async (tx) => {
       let saved

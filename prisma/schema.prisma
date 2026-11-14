@@ -135,6 +135,8 @@ model InterviewerNote {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   otherNotes         String?
+  /// Lama wawancara (detik) dari timer saat catatan dikunci, maks. 600. Null = tanpa timer/data lama. Hanya untuk rekap.
+  interviewSeconds   Int?
   candidate          Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   // Satu catatan per siswa: mencegah catatan ganda saat dua permintaan masuk bersamaan.
