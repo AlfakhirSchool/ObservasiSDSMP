@@ -14,7 +14,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const level = searchParams.get("level") || undefined
     const academicYear = searchParams.get("academicYear") || undefined
-    const stats = await getDashboardStats(level, academicYear)
+    const gelombang = searchParams.get("gelombang") || undefined
+    const stats = await getDashboardStats(level, academicYear, gelombang)
     return NextResponse.json(stats)
   } catch (error) {
     console.error("[GET /api/admin/stats]", error)

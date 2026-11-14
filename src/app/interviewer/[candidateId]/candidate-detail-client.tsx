@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/input"
 import FormAnswersViewer from "./form-answers-viewer"
 import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
+import { StudentTimerCard } from "@/components/interview-timer"
+import { unlockCandidateNote } from "@/lib/actions"
 import {
   ArrowLeft,
   Sparkles,
@@ -31,17 +33,8 @@ import {
   UserRound,
   X,
   XCircle,
-  BookOpen,
-  Save,
+  LockOpen,
 } from "lucide-react"
-import {
-  isQuranNilai,
-  QURAN_CATATAN_MAKS,
-  QURAN_NILAI_KETERANGAN,
-  QURAN_NILAI_TONE,
-  QURAN_NILAI_URUT,
-  type QuranNilai,
-} from "@/lib/quran"
 
 export type CandidateDetail = Prisma.CandidateGetPayload<{
   include: {
@@ -61,6 +54,8 @@ interface Props {
   interviewerName: string
   /** Unduh raport hanya untuk admin. */
   canDownload: boolean
+  /** Admin boleh membuka kunci catatan yang sudah dikirim agar bisa diisi ulang. */
+  canUnlock: boolean
   candidateToken?: string
 }
 
@@ -138,6 +133,7 @@ export default function CandidateDetailClient({
   savedSummary,
   interviewerName,
   canDownload,
+  canUnlock,
   candidateToken,
 }: Props) {
   const router = useRouter()
@@ -153,6 +149,8 @@ export default function CandidateDetailClient({
     return isRecommendation(saved) ? saved : ""
   })
   const [submitting, setSubmitting] = useState(false)
+  const [confirmUnlock, setConfirmUnlock] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [showAcademicDetails, setShowAcademicDetails] = useState(false)
   const [showQrDialog, setShowQrDialog] = useState(false)
@@ -162,36 +160,6 @@ export default function CandidateDetailClient({
   const [summary, setSummary] = useState<string | null>(savedSummary)
   const [generatingSummary, setGeneratingSummary] = useState(false)
   const [origin, setOrigin] = useState("")
-
-  // State observasi Al-Qur'an
-  const [quranNilai, setQuranNilai] = useState<QuranNilai | null>(
-    isQuranNilai(candidate.quranNilai) ? candidate.quranNilai : null
-  )
-  const [quranCatatan, setQuranCatatan] = useState(candidate.quranCatatan ?? "")
-  const [savingQuran, setSavingQuran] = useState(false)
-
-  const simpanQuran = async () => {
-    setSavingQuran(true)
-    try {
-      const res = await fetch("/api/quran", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          candidateId: candidate.id,
-          nilai: quranNilai,
-          catatan: quranCatatan.trim(),
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? "Gagal menyimpan")
-      toast.success("Observasi Al-Qur'an berhasil disimpan!")
-      router.refresh()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menyimpan")
-    } finally {
-      setSavingQuran(false)
-    }
-  }
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -234,6 +202,21 @@ export default function CandidateDetailClient({
       toast.error(err instanceof Error ? err.message : "Gagal menghasilkan ringkasan AI")
     } finally {
       setGeneratingSummary(false)
+    }
+  }
+
+  const handleUnlock = async () => {
+    setUnlocking(true)
+    try {
+      const res = await unlockCandidateNote(candidate.id)
+      if (!res.success) throw new Error(res.error ?? "Gagal membuka kunci")
+      toast.success("Pengisian dibuka. Catatan bisa diedit dan dikunci ulang.")
+      setConfirmUnlock(false)
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membuka kunci")
+    } finally {
+      setUnlocking(false)
     }
   }
 
@@ -369,6 +352,9 @@ export default function CandidateDetailClient({
         </div>
       </div>
 
+      {/* TIMER WAWANCARA (hanya tampil untuk pewawancara orang tua; informasi saja) */}
+      {!isLocked && <StudentTimerCard candidateId={candidate.id} name={candidate.name} unit={candidate.level} />}
+
       {/* SECTION ATAS: DATA SISWA & RINGKASAN AI (BERDAMPINGAN) */}
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         {/* DATA SISWA */}
@@ -434,7 +420,7 @@ export default function CandidateDetailClient({
       </div>
 
       {/* SECTION UTAMA BERDAMPINGAN: CATATAN OBSERVASI (KIRI) & JAWABAN FORMULIR (KANAN) */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         {/* KOLOM KIRI: CATATAN OBSERVASI */}
         <div className="space-y-6">
           {/* CATATAN OBSERVASI */}
@@ -492,6 +478,35 @@ export default function CandidateDetailClient({
                       <p className="mt-1 text-sm font-medium text-slate-900">{existingNote?.interviewerName}</p>
                     </div>
                   </div>
+                  {canUnlock && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      {confirmUnlock ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-amber-900">
+                            Buka pengisian untuk <span className="font-semibold">{candidate.name}</span>? Isi catatan lama tetap tersimpan
+                            dan form bisa diedit lagi. Setelah disimpan, catatan terkunci kembali.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={handleUnlock} disabled={unlocking} className={BTN_PRIMARY}>
+                              {unlocking && <RefreshCw size={16} className="animate-spin" aria-hidden="true" />}
+                              {unlocking ? "Membuka..." : "Ya, buka pengisian"}
+                            </button>
+                            <button type="button" onClick={() => setConfirmUnlock(false)} disabled={unlocking} className={BTN_SECONDARY}>
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-sm text-amber-900">Perlu memperbaiki catatan ini? Admin dapat membuka kembali pengisian.</p>
+                          <button type="button" onClick={() => setConfirmUnlock(true)} className={BTN_SECONDARY}>
+                            <LockOpen size={16} aria-hidden="true" />
+                            Buka pengisian
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -573,105 +588,24 @@ export default function CandidateDetailClient({
               )}
             </div>
           </section>
-
-          {/* OBSERVASI AL-QUR'AN LANGSUNG DI HALAMAN SISWA */}
-          <section className={CARD_CLASS}>
-            <div className={cn(CARD_HEADER_CLASS, "flex items-center justify-between gap-3")}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-slate-900">Observasi Al-Qur&apos;an</h2>
-                  <span
-                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold uppercase text-white"
-                    style={{ backgroundColor: unitColor }}
-                  >
-                    Unit {candidate.level}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Tes baca 2 halaman (A: kedua hal benar · B: hal 1 benar, hal 2 salah · C: hal 1 salah)
-                </p>
-              </div>
-              <BookOpen size={18} className="shrink-0 text-sky-600" aria-hidden="true" />
-            </div>
-
-            <div className="space-y-4 p-5">
-              <div>
-                <p className="mb-2 text-sm font-medium text-slate-700">Nilai tes baca</p>
-                <div role="group" aria-label="Nilai Al-Qur'an" className="grid grid-cols-3 gap-2">
-                  {QURAN_NILAI_URUT.map((n) => {
-                    const aktif = quranNilai === n
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        aria-pressed={aktif}
-                        onClick={() => setQuranNilai(aktif ? null : n)}
-                        className={cn(
-                          "min-h-11 rounded-xl border text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
-                          aktif ? QURAN_NILAI_TONE[n] : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        )}
-                      >
-                        {n}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {quranNilai ? `${quranNilai}: ${QURAN_NILAI_KETERANGAN[quranNilai]}` : "Pilih nilai A, B, atau C"}
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="detail-quran-catatan" className="text-sm font-medium text-slate-700">
-                  Catatan penguji (opsional)
-                </label>
-                <textarea
-                  id="detail-quran-catatan"
-                  value={quranCatatan}
-                  maxLength={QURAN_CATATAN_MAKS}
-                  onChange={(e) => setQuranCatatan(e.target.value)}
-                  placeholder="Catatan kelancaran, makhraj, tajwid..."
-                  className="min-h-[80px] w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                />
-              </div>
-
-              {candidate.quranDinilaiOleh && (
-                <p className="text-xs text-slate-500">
-                  Terakhir dinilai oleh: <span className="font-semibold text-slate-700">{candidate.quranDinilaiOleh}</span>
-                </p>
-              )}
-
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  disabled={
-                    savingQuran ||
-                    (quranNilai === (isQuranNilai(candidate.quranNilai) ? candidate.quranNilai : null) &&
-                      quranCatatan.trim() === (candidate.quranCatatan ?? "").trim())
-                  }
-                  onClick={simpanQuran}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Save size={14} aria-hidden="true" />
-                  {savingQuran ? "Menyimpan…" : "Simpan Nilai Al-Qur'an"}
-                </button>
-              </div>
-            </div>
-          </section>
         </div>
 
         {/* KOLOM KANAN: JAWABAN FORMULIR & OBSERVASI AKADEMIK */}
-        <div className="space-y-6">
-          {/* JAWABAN FORMULIR (Ditempatkan tepat di samping Catatan Observasi) */}
-          <FormAnswersViewer
-            parentAnswers={parentAnswers}
-            studentAnswers={studentAnswers}
-            isSd={candidate.level === "SD"}
-            onShowQr={() => {
-              setQrType("form_parent")
-              setShowQrDialog(true)
-            }}
-          />
+        <div className={cn("space-y-6", !showAcademic && "lg:relative lg:min-h-[480px]")}>
+          {/* JAWABAN FORMULIR (Ditempatkan tepat di samping Catatan Observasi). Tanpa kartu akademik (SD):
+              tinggi kartu mengikuti kolom kiri; daftar jawaban di-scroll di dalamnya. */}
+          <div className={cn(!showAcademic && "lg:absolute lg:inset-0")}>
+            <FormAnswersViewer
+              parentAnswers={parentAnswers}
+              studentAnswers={studentAnswers}
+              isSd={candidate.level === "SD"}
+              fill={!showAcademic}
+              onShowQr={() => {
+                setQrType("form_parent")
+                setShowQrDialog(true)
+              }}
+            />
+          </div>
 
           {/* OBSERVASI AKADEMIK */}
           {showAcademic && (

@@ -1,11 +1,14 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { prisma } from "@/lib/prisma"
+import { hasInterviewTimer } from "@/lib/interview-timer"
 import { BrandLogo } from "@/components/layout/brand-logo"
 import { LogoutButton } from "@/components/layout/logout-button"
 import { UserChip } from "@/components/layout/user-chip"
 import { Home } from "lucide-react"
 import { InterviewerNav } from "@/components/layout/interviewer-nav"
+import { InterviewTimerMonitor, InterviewTimerProvider } from "@/components/interview-timer"
 
 export default async function InterviewerLayout({
   children,
@@ -15,6 +18,13 @@ export default async function InterviewerLayout({
   const session = await auth()
   if (!session) redirect("/login")
   const isAdmin = session.user?.role?.startsWith("admin")
+
+  // Timer 8 menit hanya untuk pewawancara orang tua; dikenali dari username akun (bukan nama tampilan).
+  let timerEnabled = false
+  if (session.user.role === "interviewer" && session.user.id) {
+    const account = await prisma.user.findUnique({ where: { id: session.user.id }, select: { username: true } })
+    timerEnabled = hasInterviewTimer(account?.username)
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
@@ -58,7 +68,10 @@ export default async function InterviewerLayout({
       </nav>
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        {children}
+        <InterviewTimerProvider enabled={timerEnabled} userId={session.user.id ?? ""}>
+          {children}
+          <InterviewTimerMonitor />
+        </InterviewTimerProvider>
       </main>
     </div>
   )

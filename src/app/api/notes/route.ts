@@ -19,6 +19,8 @@ const NoteSchema = z.object({
   aiSummary: z.string().optional(),
 })
 
+class NoteLockedError extends Error {}
+
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
 
     const candidate = await prisma.candidate.findUnique({
       where: { id: validated.candidateId },
-      select: { id: true, name: true, level: true, selectedInterviewer: true, notes: { select: { isLocked: true } } },
+      select: { id: true, name: true, level: true, selectedInterviewer: true, notes: { select: { id: true, isLocked: true } } },
     })
 
     if (!candidate) {
@@ -50,24 +52,31 @@ export async function POST(request: Request) {
     }
 
     // Catatan + status dalam satu transaksi. Batas unik candidateId di database menolak catatan ganda
-    // jika dua permintaan masuk bersamaan.
+    // jika dua permintaan masuk bersamaan. Catatan yang dibuka kuncinya oleh admin diperbarui (bukan dibuat baru);
+    // updateMany dengan syarat isLocked=false menolak simpan ganda yang bersamaan.
+    const existing = candidate.notes[0] ?? null
+    const noteData = {
+      interviewerName: session.user.name || session.user.email || "",
+      interviewerEmail: session.user.email || "",
+      observation: validated.observation,
+      academicAssessment: validated.academicAssessment,
+      familySupport: validated.familySupport,
+      characterNotes: validated.characterNotes,
+      otherNotes: validated.otherNotes || "",
+      recommendation: validated.recommendation,
+      isLocked: true,
+    }
     const note = await prisma.$transaction(async (tx) => {
-      const created = await tx.interviewerNote.create({
-        data: {
-          candidateId: validated.candidateId,
-          interviewerName: session.user.name || session.user.email || "",
-          interviewerEmail: session.user.email || "",
-          observation: validated.observation,
-          academicAssessment: validated.academicAssessment,
-          familySupport: validated.familySupport,
-          characterNotes: validated.characterNotes,
-          otherNotes: validated.otherNotes || "",
-          recommendation: validated.recommendation,
-          isLocked: true,
-        },
-      })
+      let saved
+      if (existing) {
+        const updated = await tx.interviewerNote.updateMany({ where: { id: existing.id, isLocked: false }, data: noteData })
+        if (updated.count === 0) throw new NoteLockedError()
+        saved = await tx.interviewerNote.findUniqueOrThrow({ where: { id: existing.id } })
+      } else {
+        saved = await tx.interviewerNote.create({ data: { candidateId: validated.candidateId, ...noteData } })
+      }
       await tx.candidate.update({ where: { id: validated.candidateId }, data: { status: "REVIEWED" } })
-      return created
+      return saved
     })
 
     await logActivity({
@@ -75,7 +84,7 @@ export async function POST(request: Request) {
       targetType: "siswa",
       targetId: candidate.id,
       targetLabel: candidate.name,
-      detail: `Rekomendasi: ${validated.recommendation}`,
+      detail: `Rekomendasi: ${validated.recommendation}${existing ? " (diisi ulang setelah dibuka admin)" : ""}`,
     })
 
     revalidatePath("/interviewer")
@@ -86,6 +95,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validasi gagal", details: error.issues }, { status: 422 })
+    }
+    if (error instanceof NoteLockedError) {
+      return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })

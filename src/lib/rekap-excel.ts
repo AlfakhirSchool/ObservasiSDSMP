@@ -5,6 +5,7 @@
  */
 import type { RekapFormData, RekapFormRow } from "@/lib/rekap-form"
 import type { RekapSdRow } from "@/lib/rekap-sd"
+import type { RekapAkademikSmpRow } from "@/lib/rekap-akademik"
 import { SD_ASPEK, SD_JUMLAH_INDIKATOR, aspekPredikat } from "@/lib/raport-sd"
 
 type Cell = string | number
@@ -202,6 +203,55 @@ export async function eksporRekapQuran(rows: { nama: string; level: string; gelo
     rows: body,
     centerCols: [0, 2, 3, 4],
     fixedWidths: { 0: 5, 5: 50 },
+    freezeCols: 2,
+  })
+}
+
+/** Ekspor rekap hasil tes akademik calon siswa SMP ke Excel. */
+export async function eksporRekapAkademikSmp(rows: RekapAkademikSmpRow[]) {
+  const header = [
+    "No",
+    "Nama Siswa",
+    "Asal Sekolah",
+    "Pewawancara",
+    "Gelombang",
+    "Tahun Ajaran",
+    "Status Ujian",
+    "Nilai Akhir",
+    "Predikat",
+    "B. Indonesia (%)",
+    "Matematika (%)",
+    "B. Inggris (%)",
+    "Agama Islam (%)",
+    "IPA (%)",
+    "Keputusan",
+  ]
+
+  const body: Cell[][] = rows.map((r, idx) => [
+    idx + 1,
+    r.nama,
+    r.asalSekolah,
+    r.guru,
+    `Gelombang ${r.gelombang}`,
+    r.academicYear ?? "-",
+    r.sudahUjian ? "Sudah Ujian" : "Belum Ujian",
+    r.totalScore !== null ? Math.round(r.totalScore) : "-",
+    r.predikat ?? "-",
+    r.subjectScores["Bahasa Indonesia"]?.percent ?? "-",
+    r.subjectScores["Matematika"]?.percent ?? "-",
+    r.subjectScores["Bahasa Inggris"]?.percent ?? "-",
+    r.subjectScores["Agama Islam"]?.percent ?? "-",
+    r.subjectScores["IPA"]?.percent ?? "-",
+    r.keputusan ?? "-",
+  ])
+
+  await unduhXlsx({
+    fileName: "Rekap_Tes_Akademik_SMP",
+    sheetName: "Tes Akademik SMP",
+    header,
+    rows: body,
+    centerCols: [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    fixedWidths: { 0: 5, 1: 30, 2: 25, 3: 20 },
     freezeCols: 2,
   })
 }

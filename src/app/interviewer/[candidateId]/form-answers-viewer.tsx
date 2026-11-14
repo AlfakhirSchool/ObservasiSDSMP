@@ -32,6 +32,8 @@ interface Props {
   studentAnswers: AnswerEntry[]
   isSd: boolean
   onShowQr: () => void
+  /** Di layar lebar, kartu mengisi tinggi kolomnya (sejajar dengan kolom sebelah) dan daftar jawaban di-scroll di dalamnya. */
+  fill?: boolean
 }
 
 export default function FormAnswersViewer({
@@ -39,6 +41,7 @@ export default function FormAnswersViewer({
   studentAnswers,
   isSd,
   onShowQr,
+  fill = false,
 }: Props) {
   // Tab aktif (untuk SMP: orang tua vs siswa)
   const [activeTab, setActiveTab] = useState<"parent" | "student">("parent")
@@ -97,7 +100,7 @@ export default function FormAnswersViewer({
   const totalAnswered = activeEntries.filter((e) => e.value && e.value.trim() !== "").length
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className={cn("flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm", fill && "lg:h-full")}>
       {/* Header Bagian Jawaban Formulir */}
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
@@ -194,8 +197,8 @@ export default function FormAnswersViewer({
         </div>
       </div>
 
-      {/* Container Jawaban Formulir: dibatasi ketinggiannya (max-h) agar tidak memanjang ratusan baris */}
-      <div className="max-h-[540px] overflow-y-auto p-4 sm:p-5 space-y-4">
+      {/* Container Jawaban Formulir: dibatasi ketinggiannya agar tidak memanjang ratusan baris */}
+      <div className={cn("min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5", fill ? "max-h-[540px] lg:max-h-none" : "max-h-[540px]")}>
         {activeEntries.length === 0 ? (
           <EmptyState
             icon={FileText}

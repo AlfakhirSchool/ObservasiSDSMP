@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, BookOpen, ChevronRight, GraduationCap, Home, Users } from "lucide-react"
+import { ArrowLeft, BookOpen, ChevronRight, GraduationCap, Home, Users, Award } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
 import { RekapFormClient } from "@/components/rekap-form-client"
 import { RekapSdClient } from "@/components/rekap-sd-client"
+import { RekapAkademikClient } from "@/components/rekap-akademik-client"
 import { startPolling } from "@/lib/polling"
 import type { RekapFormData, RekapJenjang } from "@/lib/rekap-form"
 import type { RekapSdRow } from "@/lib/rekap-sd"
+import type { RekapAkademikSmpRow } from "@/lib/rekap-akademik"
 import { cn } from "@/lib/utils"
 
-type Sumber = "orangtua" | "siswa" | "raport"
+type Sumber = "orangtua" | "siswa" | "raport" | "akademik"
 
 /** Sumber data yang tersedia tiap jenjang: SD = orang tua + raport observasi; SMP = orang tua + siswa. */
 const SUMBER: Record<RekapJenjang, { id: Sumber; label: string }[]> = {
@@ -20,6 +22,7 @@ const SUMBER: Record<RekapJenjang, { id: Sumber; label: string }[]> = {
     { id: "orangtua", label: "Jawaban orang tua" },
   ],
   SMP: [
+    { id: "akademik", label: "Hasil Tes Akademik" },
     { id: "orangtua", label: "Jawaban orang tua" },
     { id: "siswa", label: "Jawaban siswa" },
   ],
@@ -33,6 +36,7 @@ interface Props {
   sdOrangTua: RekapFormData
   smpOrangTua: RekapFormData
   smpSiswa: RekapFormData
+  smpAkademik?: RekapAkademikSmpRow[]
   /** Nama pewawancara yang sedang login; kosong untuk admin. */
   ownerName?: string
   detailBase: string
@@ -40,16 +44,28 @@ interface Props {
   initialJenjang?: RekapJenjang
   /** Kunci tampilan ke satu unit saja (SD atau SMP). Pilihan jenjang lain dan link unit lain akan disembunyikan. */
   lockedUnit?: RekapJenjang
+  initialSumber?: Sumber
 }
-
-export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerName, detailBase, initialJenjang = "SD", lockedUnit }: Props) {
+export function RekapHasil({
+  sdRaport,
+  sdOrangTua,
+  smpOrangTua,
+  smpSiswa,
+  smpAkademik = [],
+  ownerName,
+  detailBase,
+  initialJenjang = "SD",
+  lockedUnit,
+  initialSumber,
+}: Props) {
   const router = useRouter()
   const isAdmin = !ownerName
   const activeJenjang = lockedUnit ?? initialJenjang
   const homeHref = isAdmin ? "/admin" : lockedUnit === "SD" ? "/interviewer/sd" : lockedUnit === "SMP" ? "/interviewer/smp" : "/interviewer"
   const [jenjang, setJenjang] = useState<RekapJenjang>(activeJenjang)
-  const [sumber, setSumber] = useState<Sumber>("orangtua")
-
+  const [sumber, setSumber] = useState<Sumber>(
+    initialSumber ?? (activeJenjang === "SMP" ? "akademik" : "orangtua")
+  )
   // Guru mengisi sepanjang hari; segarkan data berkala (berhenti saat tab tersembunyi).
   useEffect(() => startPolling(() => router.refresh(), 30_000), [router])
 
@@ -61,8 +77,9 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
   const allQuickLinks = [
     { unit: "SD", href: "/interviewer/sd", label: "Koreksi Unit SD", desc: "Observasi & kuesioner siswa SD", icon: Users, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
     { unit: "SD", href: "/interviewer/quran?unit=SD", label: "Al-Qur'an SD", desc: "Tes baca Al-Qur'an siswa SD", icon: BookOpen, tone: "bg-orange-50 text-orange-800 ring-orange-200" },
-    { unit: "SMP", href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara & hasil tes SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
+    { unit: "SMP", href: "/interviewer/smp", label: "Koreksi Unit SMP", desc: "Wawancara calon siswa SMP", icon: GraduationCap, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
     { unit: "SMP", href: "/interviewer/quran?unit=SMP", label: "Al-Qur'an SMP", desc: "Tes baca Al-Qur'an siswa SMP", icon: BookOpen, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
+    { unit: "SMP", href: "/interviewer/rekap?unit=SMP&sumber=akademik", label: "Tes Akademik SMP", desc: "Rekap nilai tes akademik online SMP", icon: Award, tone: "bg-teal-50 text-teal-800 ring-teal-200" },
   ]
   const quickLinks = lockedUnit ? allQuickLinks.filter((l) => l.unit === lockedUnit) : allQuickLinks
 
@@ -168,6 +185,8 @@ export function RekapHasil({ sdRaport, sdOrangTua, smpOrangTua, smpSiswa, ownerN
         <RekapSdClient key="sd-raport" rows={sdRaport} ownerName={ownerName} detailBase={detailBase} />
       ) : jenjang === "SD" ? (
         <RekapFormClient key="sd-orangtua" data={sdOrangTua} pengisi="orang tua" ownerName={ownerName} detailBase={detailBase} isSd />
+      ) : sumber === "akademik" ? (
+        <RekapAkademikClient key="smp-akademik" initialRows={smpAkademik} ownerName={ownerName} detailBase={detailBase} />
       ) : sumber === "siswa" ? (
         <RekapFormClient key="smp-siswa" data={smpSiswa} pengisi="siswa" ownerName={ownerName} detailBase={detailBase} />
       ) : (

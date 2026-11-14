@@ -96,6 +96,7 @@ export default async function CandidateDetailPage({
       savedSummary={savedSummary}
       interviewerName={session.user.name ?? ""}
       canDownload={session.user.role.startsWith("admin")}
+      canUnlock={session.user.role.startsWith("admin")}
       candidateToken={generateCandidateToken(candidate.id)}
     />
   )

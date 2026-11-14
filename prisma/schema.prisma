@@ -178,6 +178,24 @@ model RateLimitHit {
   @@index([key, createdAt])
 }
 
+/// Status timer wawancara (8 menit, maks. 10) tiap pewawancara, disinkronkan dari browser agar admin bisa memantau.
+/// Hanya informasi; tanpa relasi ke Candidate/User agar tidak menghalangi penghapusan data. Baris basi dibuang saat sinkron.
+model InterviewTimer {
+  interviewerId   String
+  candidateId     String
+  interviewerName String
+  candidateName   String
+  level           Level
+  /// Awal segmen berjalan (jam server); null = dijeda/berhenti.
+  startedAt       DateTime?
+  /// Waktu berjalan sampai startedAt (atau total saat dijeda), dalam ms.
+  elapsedMs       Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@id([interviewerId, candidateId])
+  @@index([updatedAt])
+}
+
 /// Riwayat aktivitas (audit log): siapa melakukan apa, kapan, pada siapa/apa. Jangan simpan password atau NIM.
 model ActivityLog {
   id          String   @id @default(cuid())

@@ -16,6 +16,7 @@ export const ACTION_LABEL = {
   CALON_RUANGAN: "Ganti ruangan",
   CALON_STATUS: "Ubah status siswa",
   CATATAN_KIRIM: "Kirim catatan observasi",
+  CATATAN_BUKA: "Buka kunci catatan observasi",
   SD_RAPORT_SIMPAN: "Simpan isian raport SD",
   QURAN_SIMPAN: "Simpan observasi Al-Qur'an",
   RINGKASAN_AI: "Buat ringkasan AI",

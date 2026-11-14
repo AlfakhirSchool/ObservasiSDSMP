@@ -63,6 +63,7 @@ export default async function AdminCandidateDetailPage({
       savedSummary={savedSummary}
       interviewerName={session.user.name ?? ""}
       canDownload
+      canUnlock
     />
   )
 }

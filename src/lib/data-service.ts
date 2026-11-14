@@ -1,5 +1,5 @@
 import { prisma } from "./prisma"
-import { Level } from "@prisma/client"
+import { Level, Prisma } from "@prisma/client"
 
 /** Gelombang aktif untuk tahun ajaran: nomor tertinggi yang sudah dipakai, atau 1 jika belum ada siswa. */
 export async function getCurrentGelombang(academicYear: string) {
@@ -7,25 +7,31 @@ export async function getCurrentGelombang(academicYear: string) {
   return latest._max.gelombang ?? 1
 }
 
-export async function getDashboardStats(level?: string, academicYear?: string) {
-  const where: any = {}
-  if (level) where.level = level as any
+export interface PeriodSummaryItem {
+  academicYear: string
+  gelombang: number
+  count: number
+}
+
+export async function getDashboardStats(level?: string, academicYear?: string, gelombang?: number | string) {
+  const validLevel = level === "SD" || level === "SMP" ? (level as Level) : undefined
+  const where: Prisma.CandidateWhereInput = {}
+  if (validLevel) where.level = validLevel
   if (academicYear && academicYear !== "all") where.academicYear = academicYear
+  if (gelombang && gelombang !== "all") where.gelombang = Number(gelombang)
   
   const total = await prisma.candidate.count({ where })
   const pending = await prisma.candidate.count({ where: { ...where, status: "PENDING" } })
   const received = await prisma.candidate.count({ where: { ...where, status: "RESPONSE_RECEIVED" } })
   const reviewed = await prisma.candidate.count({ where: { ...where, status: "REVIEWED" } })
   
-  const notesWhere: any = {}
-  if (level) notesWhere.candidate = { level: level as any }
-  if (academicYear && academicYear !== "all") {
-    notesWhere.candidate = {
-      ...(notesWhere.candidate || {}),
-      academicYear: academicYear
-    }
-  }
+  const candidateFilter: Prisma.CandidateWhereInput = {}
+  if (validLevel) candidateFilter.level = validLevel
+  if (academicYear && academicYear !== "all") candidateFilter.academicYear = academicYear
+  if (gelombang && gelombang !== "all") candidateFilter.gelombang = Number(gelombang)
 
+  const notesWhere: Prisma.InterviewerNoteWhereInput =
+    Object.keys(candidateFilter).length > 0 ? { candidate: candidateFilter } : {}
   const completed = await prisma.interviewerNote.count({ 
     where: { 
       ...notesWhere,
@@ -52,6 +58,7 @@ export async function getDashboardStats(level?: string, academicYear?: string) {
           parentEmail: true,
           studentEmail: true,
           academicYear: true,
+          gelombang: true,
         }
       }
     }
@@ -93,6 +100,21 @@ export async function getDashboardStats(level?: string, academicYear?: string) {
     { label: `${pending + received} Observasi Tertunda`, color: "bg-[#EF5350]" },
   ]
 
+  const periodSummaryRaw = await prisma.candidate.groupBy({
+    by: ["academicYear", "gelombang"],
+    where: {
+      ...(validLevel ? { level: validLevel } : {}),
+      academicYear: { not: null },
+    },
+    _count: { id: true },
+    orderBy: [{ academicYear: "desc" }, { gelombang: "asc" }],
+  })
+  const periodSummary: PeriodSummaryItem[] = periodSummaryRaw.map((p) => ({
+    academicYear: p.academicYear ?? "-",
+    gelombang: p.gelombang,
+    count: p._count.id,
+  }))
+
   return {
     total,
     pending,
@@ -104,7 +126,8 @@ export async function getDashboardStats(level?: string, academicYear?: string) {
     chartData,
     monthlyTarget: total,
     progressPercentage,
-    statusItems
+    statusItems,
+    periodSummary,
   }
 }
 
@@ -173,14 +196,15 @@ export async function getCandidateById(id: string) {
 }
 
 export async function getAllRooms(level?: string) {
+  const validLevel = level === "SD" || level === "SMP" ? (level as Level) : undefined
   const rooms = await prisma.candidate.groupBy({
     by: ["room"],
     where: {
       room: { not: null },
-      ...(level ? { level: level as any } : {})
+      ...(validLevel ? { level: validLevel } : {})
     }
   })
-  return rooms.map((r: any) => r.room).filter(Boolean) as string[]
+  return rooms.map((r) => r.room).filter((room): room is string => Boolean(room))
 }
 
 export async function getCandidatesByRoom(room: string) {
@@ -195,9 +219,8 @@ export async function getCandidatesByRoom(room: string) {
   })
 }
 export async function getCandidates(interviewerEmail?: string, level?: string) {
-  const where: any = {}
-  if (level) where.level = level as any
-  
+  const validLevel = level === "SD" || level === "SMP" ? (level as Level) : undefined
+  const where: Prisma.CandidateWhereInput = validLevel ? { level: validLevel } : {}
   // Note: if we want to filter by interviewerEmail, we'd need a relation or a specific field.
   // For now, let's just return all candidates if no email is provided, 
   // or handle interviewer filtering if the email is linked to the name.

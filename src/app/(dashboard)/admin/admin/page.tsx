@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
-import { getDashboardStats } from "@/lib/data-service"
+import { getDashboardStats, type PeriodSummaryItem } from "@/lib/data-service"
 import { prisma } from "@/lib/prisma"
+import { Level } from "@prisma/client"
 import { redirect } from "next/navigation"
 import AdminOverviewClient from "../admin-client"
 import type { Metadata } from "next"
@@ -14,38 +15,39 @@ export default async function AdminPage() {
   if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
 
   const role = session.user.role as string
-  let levelFilter: string | undefined = undefined
-  
-  if (role === "admin_sd") levelFilter = "SD"
-  if (role === "admin_smp") levelFilter = "SMP"
+  const levelFilter: Level | undefined =
+    role === "admin_sd" ? Level.SD : role === "admin_smp" ? Level.SMP : undefined
 
-  // Ambil daftar tahun ajaran yang tersedia dari DB (terbaru dulu)
-  const yearGroups = await (prisma as any).candidate.groupBy({
-    by: ["academicYear"],
+  // Ambil daftar tahun ajaran & gelombang yang tersedia dari DB (terbaru dulu)
+  const periodGroups = await prisma.candidate.groupBy({
+    by: ["academicYear", "gelombang"],
     where: {
-      ...(levelFilter ? { level: levelFilter as any } : {}),
-      academicYear: { not: null }
+      ...(levelFilter ? { level: levelFilter } : {}),
+      academicYear: { not: null },
     },
     _count: { id: true },
-    orderBy: { academicYear: "desc" }
+    orderBy: [{ academicYear: "desc" }, { gelombang: "asc" }],
   })
 
-  const availableYears: { year: string; count: number }[] = yearGroups.map((g: any) => ({
-    year: g.academicYear as string,
-    count: g._count.id
+  const availablePeriods: PeriodSummaryItem[] = periodGroups.map((g) => ({
+    academicYear: g.academicYear ?? "-",
+    gelombang: g.gelombang,
+    count: g._count.id,
   }))
 
-  // Default: observasi terbaru (tahun ajaran tertinggi)
-  const defaultYear = availableYears[0]?.year || "2027/2028"
+  const uniqueYears = Array.from(new Set(availablePeriods.map((p) => p.academicYear)))
+  const defaultYear = uniqueYears[0] || "2027/2028"
+  const defaultWave = "all"
 
-  const stats = await getDashboardStats(levelFilter, defaultYear)
+  const stats = await getDashboardStats(levelFilter, defaultYear, defaultWave)
 
   return (
-    <AdminOverviewClient 
-      stats={stats} 
-      role={session.user.role} 
-      availableYears={availableYears}
+    <AdminOverviewClient
+      stats={stats}
+      role={session.user.role}
+      availablePeriods={availablePeriods}
       initialYear={defaultYear}
+      initialWave={defaultWave}
     />
   )
 }

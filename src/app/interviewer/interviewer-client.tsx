@@ -15,8 +15,11 @@ import {
   UserCheck,
   BookOpen,
   Table2,
+  GraduationCap,
+  Play,
 } from "lucide-react"
 import { PageHeader } from "@/components/layout/page-header"
+import { TimerBadge, useInterviewTimer } from "@/components/interview-timer"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatDate, cn } from "@/lib/utils"
@@ -69,6 +72,7 @@ function UnitBadge({ unit }: { unit: "SD" | "SMP" }) {
 
 export default function InterviewerDashboardClient({ unit, initialCandidates, lockedInterviewer }: Props) {
   const router = useRouter()
+  const timer = useInterviewTimer()
   const [search, setSearch] = useState("")
   const [dateQuery, setDateQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
@@ -129,6 +133,12 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
     setPage(1)
   }
 
+  // Membuka siswa untuk diwawancarai = memulai timer 8 menit (jika timer akun aktif dan siswa belum dicatat).
+  const startTimerFor = (c: Candidate) => {
+    if (!c.hasNote) timer.start({ candidateId: c.id, name: c.name, unit })
+  }
+  const timerOf = (id: string) => timer.entries.find((e) => e.candidateId === id)
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -137,6 +147,15 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
         description="Daftar siswa dan progres observasi"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {unit === "SMP" && (
+              <Link
+                href="/interviewer/rekap?unit=SMP&sumber=akademik"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              >
+                <GraduationCap size={16} className="text-emerald-600" aria-hidden="true" />
+                Tes Akademik SMP
+              </Link>
+            )}
             <Link
               href={`/interviewer/quran?unit=${unit}`}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
@@ -273,6 +292,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
               <li key={c.id}>
                 <Link
                   href={`/interviewer/${c.id}?unit=${unit}`}
+                  onClick={() => startTimerFor(c)}
                   className="block space-y-2 px-4 py-3.5 active:bg-slate-50"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -301,6 +321,7 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                     ) : c.hasResponse ? (
                       <span className={cn(PILL_BASE, "bg-amber-50 text-amber-700 ring-amber-200")}>Perlu observasi</span>
                     ) : null}
+                    {timerOf(c.id) && <TimerBadge entry={timerOf(c.id)!} now={timer.now} />}
                   </div>
                 </Link>
               </li>
@@ -323,12 +344,16 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                 {paginated.map((c) => (
                   <tr
                     key={c.id}
-                    onClick={() => router.push(`/interviewer/${c.id}?unit=${unit}`)}
+                    onClick={() => {
+                      startTimerFor(c)
+                      router.push(`/interviewer/${c.id}?unit=${unit}`)
+                    }}
                     className="cursor-pointer hover:bg-slate-50"
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{c.name}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{formatDate(c.createdAt)} · TA {c.academicYear ?? "-"} · Gelombang {c.gelombang}</p>
+                      {timerOf(c.id) && <TimerBadge entry={timerOf(c.id)!} now={timer.now} className="mt-1.5" />}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -363,9 +388,25 @@ export default function InterviewerDashboardClient({ unit, initialCandidates, lo
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1.5">
+                        {timer.enabled && !c.hasNote && !timerOf(c.id) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              startTimerFor(c)
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                          >
+                            <Play size={14} aria-hidden="true" />
+                            Mulai
+                          </button>
+                        )}
                         <Link
                           href={`/interviewer/${c.id}?unit=${unit}`}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startTimerFor(c)
+                          }}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
                         >
                           Detail

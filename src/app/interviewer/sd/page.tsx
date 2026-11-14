@@ -25,7 +25,8 @@ export default async function InterviewerSDPage() {
     academicYear: c.academicYear,
     gelombang: c.gelombang,
     hasResponse: c.status !== "PENDING",
-    hasNote: c.notes.length > 0,
+    // Catatan yang kuncinya dibuka admin dianggap belum selesai: siswa muncul lagi sebagai "Perlu observasi".
+    hasNote: c.notes.some((n) => n.isLocked),
   }))
 
   // Untuk Unit SD, semua siswa SD tampil di semua observer SD (tidak dikunci per guru)

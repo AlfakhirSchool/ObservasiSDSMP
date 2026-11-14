@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useEffect, useSyncExternalStore, Suspense } from "react"
-import { BookOpen, CheckSquare, Table2, LayoutGrid } from "lucide-react"
+import { BookOpen, CheckSquare, Table2, LayoutGrid, GraduationCap } from "lucide-react"
 
 type Unit = "SD" | "SMP"
 const UNIT_KEY = "alfakhir_active_unit"
@@ -148,10 +148,22 @@ function InterviewerNavContent() {
           <span>Al-Qur&apos;an SMP</span>
         </Link>
         <Link
-          href="/interviewer/rekap?unit=SMP"
-          title="Rekap Hasil Wawancara & Akademik SMP"
+          href="/interviewer/rekap?unit=SMP&sumber=akademik"
+          title="Rekap Nilai Tes Akademik SMP"
           className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
-            pathname === "/interviewer/rekap" && currentUnit === "SMP"
+            pathname === "/interviewer/rekap" && currentUnit === "SMP" && searchParams?.get("sumber") === "akademik"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-emerald-200 hover:bg-white/10 hover:text-white"
+          }`}
+        >
+          <GraduationCap size={13} aria-hidden="true" />
+          <span>Tes Akademik</span>
+        </Link>
+        <Link
+          href="/interviewer/rekap?unit=SMP"
+          title="Rekap Hasil Wawancara & Kuesioner SMP"
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
+            pathname === "/interviewer/rekap" && currentUnit === "SMP" && searchParams?.get("sumber") !== "akademik"
               ? "bg-emerald-600 text-white shadow-sm"
               : "text-emerald-200 hover:bg-white/10 hover:text-white"
           }`}

@@ -268,3 +268,36 @@ export async function importCandidates(candidates: any[]) {
     return { success: false, error: "Gagal mengimpor data. Pastikan format kolom sudah benar." }
   }
 }
+
+/**
+ * Admin membuka kunci catatan observasi yang sudah dikirim agar bisa diisi/diubah lagi.
+ * Isi catatan lama tetap tersimpan (dan tetap terhitung di rekap) sampai pewawancara mengirim ulang dan mengunci kembali.
+ */
+export async function unlockCandidateNote(candidateId: string): Promise<{ success: boolean; error?: string }> {
+  await assertAdmin()
+  try {
+    const note = await prisma.interviewerNote.findUnique({
+      where: { candidateId },
+      select: { id: true, isLocked: true, candidate: { select: { name: true } } },
+    })
+    if (!note) return { success: false, error: "Siswa ini belum punya catatan observasi." }
+    if (!note.isLocked) return { success: true }
+
+    await prisma.interviewerNote.updateMany({ where: { id: note.id, isLocked: true }, data: { isLocked: false } })
+    await logActivity({
+      action: "CATATAN_BUKA",
+      targetType: "siswa",
+      targetId: candidateId,
+      targetLabel: note.candidate.name,
+      detail: "Kunci catatan dibuka admin untuk diisi ulang",
+    })
+
+    await triggerRevalidate(`/admin/candidates/${candidateId}`)
+    await triggerRevalidate(`/interviewer/${candidateId}`)
+    await triggerRevalidate("/interviewer")
+    return { success: true }
+  } catch (error) {
+    console.error("Unlock note error:", error)
+    return { success: false, error: "Gagal membuka kunci catatan." }
+  }
+}

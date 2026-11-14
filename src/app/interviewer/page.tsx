@@ -5,9 +5,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import {
   ArrowRight,
+  Award,
   BookOpen,
-  CheckCircle2,
-  FileText,
   GraduationCap,
   Sparkles,
   Table2,
@@ -178,7 +177,7 @@ export default async function InterviewerDashboardPortalPage() {
             {/* Menu Pintasan SMP */}
             <div className="space-y-2 pt-1">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Pilihan Menu SMP:</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Link
                   href="/interviewer/smp"
                   className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-emerald-400 hover:bg-emerald-50/30"
@@ -192,6 +191,13 @@ export default async function InterviewerDashboardPortalPage() {
                 >
                   <BookOpen size={14} className="text-emerald-600" aria-hidden="true" />
                   <span>Al-Qur&apos;an SMP</span>
+                </Link>
+                <Link
+                  href="/interviewer/rekap?unit=SMP&sumber=akademik"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-emerald-400 hover:bg-emerald-50/30"
+                >
+                  <Award size={14} className="text-emerald-600" aria-hidden="true" />
+                  <span>Tes Akademik</span>
                 </Link>
                 <Link
                   href="/interviewer/rekap?unit=SMP"
