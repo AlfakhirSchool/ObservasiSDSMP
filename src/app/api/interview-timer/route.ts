@@ -38,10 +38,20 @@ export async function PUT(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid" }, { status: 400 })
 
   const byId = new Map(parsed.data.entries.map((e) => [e.candidateId, e]))
-  const candidates = await prisma.candidate.findMany({
-    where: { id: { in: [...byId.keys()] } },
-    select: { id: true, name: true, correctedName: true, level: true },
-  })
+  const [found, lockedNotes] = await Promise.all([
+    prisma.candidate.findMany({
+      where: { id: { in: [...byId.keys()] } },
+      select: { id: true, name: true, correctedName: true, level: true },
+    }),
+    prisma.interviewerNote.findMany({
+      where: { candidateId: { in: [...byId.keys()] }, isLocked: true },
+      select: { candidateId: true },
+    }),
+  ])
+  // Siswa yang catatannya sudah dikirim dan dikunci dianggap selesai: timernya tidak disimpan di server dan klien
+  // diminta menghapusnya dari daftar lokal (balasan `done`).
+  const doneIds = new Set(lockedNotes.map((n) => n.candidateId))
+  const candidates = found.filter((c) => !doneIds.has(c.id))
 
   const now = new Date()
   const interviewerName = account.name ?? account.username ?? "Pewawancara"
@@ -75,5 +85,5 @@ export async function PUT(req: Request) {
     console.error("[PUT /api/interview-timer]", err)
     return NextResponse.json({ error: "Gagal menyinkronkan timer" }, { status: 500 })
   }
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, done: [...doneIds] })
 }

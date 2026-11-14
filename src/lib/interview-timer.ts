@@ -192,12 +192,18 @@ export async function pushTimers(userId: string): Promise<void> {
     elapsedMs: Math.round(entryElapsedMs(e, now)),
   }))
   try {
-    await fetch("/api/interview-timer", {
+    const res = await fetch("/api/interview-timer", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ entries }),
       keepalive: true,
     })
+    if (!res.ok) return
+    // Siswa yang catatannya sudah terkunci: hapus timernya dari daftar lokal agar tidak menumpuk.
+    const data: unknown = await res.json()
+    if (typeof data === "object" && data !== null && "done" in data && Array.isArray(data.done)) {
+      for (const id of data.done) if (typeof id === "string") removeTimer(userId, id)
+    }
   } catch {
     // offline / gagal: abaikan, dicoba lagi pada heartbeat atau perubahan berikutnya
   }

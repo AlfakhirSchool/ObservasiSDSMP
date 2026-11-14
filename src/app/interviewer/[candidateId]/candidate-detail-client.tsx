@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/input"
 import FormAnswersViewer from "./form-answers-viewer"
 import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
-import { StudentTimerCard } from "@/components/interview-timer"
+import { StudentTimerCard, useInterviewTimer } from "@/components/interview-timer"
 import { unlockCandidateNote } from "@/lib/actions"
 import {
   ArrowLeft,
@@ -137,6 +137,7 @@ export default function CandidateDetailClient({
   candidateToken,
 }: Props) {
   const router = useRouter()
+  const { remove: removeTimer } = useInterviewTimer()
 
   // Notes form state
   const [observation, setObservation] = useState(existingNote?.observation || "")
@@ -244,6 +245,7 @@ export default function CandidateDetailClient({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan")
       toast.success("Catatan berhasil disimpan dan dikunci!")
+      removeTimer(candidate.id)
       setShowConfirm(false)
       router.refresh()
     } catch (err: unknown) {

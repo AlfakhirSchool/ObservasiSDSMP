@@ -87,6 +87,10 @@ export async function POST(request: Request) {
       detail: `Rekomendasi: ${validated.recommendation}${existing ? " (diisi ulang setelah dibuka admin)" : ""}`,
     })
 
+    // Siswa selesai: timer wawancara tidak diperlukan lagi, jadi hilang dari monitor admin. Gagal di sini tidak
+    // boleh menggagalkan penyimpanan catatan.
+    await prisma.interviewTimer.deleteMany({ where: { candidateId: validated.candidateId } }).catch(() => undefined)
+
     revalidatePath("/interviewer")
     revalidatePath(`/interviewer/${validated.candidateId}`)
     revalidatePath("/admin/candidates")

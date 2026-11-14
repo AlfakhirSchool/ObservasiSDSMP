@@ -28,11 +28,21 @@ export interface AdminTimerPayload {
 /** Timer wawancara yang sedang/baru berjalan, untuk pemantauan admin. `level` membatasi ke satu unit (admin SD/SMP). */
 export async function getAdminTimers(level?: Level): Promise<AdminTimerPayload> {
   const now = Date.now()
-  const rows = await prisma.interviewTimer.findMany({
+  const found = await prisma.interviewTimer.findMany({
     where: { updatedAt: { gte: new Date(now - ADMIN_VISIBLE_MS) }, ...(level ? { level } : {}) },
     orderBy: { updatedAt: "desc" },
     take: 200,
   })
+  // Siswa yang catatannya sudah dikunci dianggap selesai dan tidak ditampilkan (termasuk baris lama yang tersisa).
+  const done = new Set(
+    (
+      await prisma.interviewerNote.findMany({
+        where: { candidateId: { in: found.map((r) => r.candidateId) }, isLocked: true },
+        select: { candidateId: true },
+      })
+    ).map((n) => n.candidateId),
+  )
+  const rows = found.filter((r) => !done.has(r.candidateId))
   return {
     serverNow: now,
     rows: rows.map((r) => ({
