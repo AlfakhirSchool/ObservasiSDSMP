@@ -1,3 +1,4 @@
+import { canViewMonitoring, isAdminRole } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 
 export default async function AdminCandidatesPage() {
   const session = await auth()
-  if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
+  if (!session || !canViewMonitoring(session.user?.role)) redirect("/login")
 
   const candidates = await (prisma as any).candidate.findMany({
     include: {
@@ -28,7 +29,7 @@ export default async function AdminCandidatesPage() {
   const enriched = (candidates as any[]).map((c) => ({
     ...c,
     note: c.notes[0] || null,
-    hasNote: c.notes.length > 0,
+    hasNote: c.notes.some((n: { isLocked: boolean }) => n.isLocked),
     createdAt: c.createdAt,
     daysSinceForm: c.createdAt
       ? Math.floor(
@@ -38,5 +39,5 @@ export default async function AdminCandidatesPage() {
       : null,
   }))
 
-  return <AdminCandidatesClient candidates={enriched as any} />
+  return <AdminCandidatesClient candidates={enriched} readOnly={!isAdminRole(session.user.role)} />
 }

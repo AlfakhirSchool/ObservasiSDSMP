@@ -7,6 +7,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin_sd: "Admin SD",
   admin_smp: "Admin SMP",
   interviewer: "Pewawancara",
+  quran_observer: "Observasi Al-Qur'an",
+  committee: "Panitia",
   unauthorized: "Tidak berwenang",
 }
 

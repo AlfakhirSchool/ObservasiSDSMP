@@ -116,7 +116,7 @@ export default function AdminNotesClient({ notes }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Catatan Observasi"
-        description={`${notes.length} catatan telah dikirim`}
+        description={`${notes.length} catatan`}
         actions={
           <>
             <Button variant="outline" onClick={() => handleExport("xlsx")}>
@@ -242,13 +242,13 @@ export default function AdminNotesClient({ notes }: Props) {
             <EmptyState
               icon={ClipboardList}
               title="Belum ada catatan observasi"
-              description="Catatan dari pewawancara akan tampil di sini."
+              description="Tampil setelah pewawancara mengirim catatan."
             />
           ) : paginated.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
               title="Tidak ada catatan ditemukan"
-              description="Tidak ada catatan yang cocok dengan filter yang dipilih."
+              description="Tidak ada yang cocok dengan filter."
               action={
                 <Button variant="outline" onClick={resetFilters}>
                   Reset filter
@@ -292,6 +292,9 @@ export default function AdminNotesClient({ notes }: Props) {
                           { label: "Kesiapan Akademik", value: note.academicAssessment },
                           { label: "Dukungan Keluarga", value: note.familySupport },
                           { label: "Karakter & Sikap", value: note.characterNotes },
+                          ...(note.recommendationReason
+                            ? [{ label: note.recommendation === "Tolak" ? "Alasan Ditolak" : "Alasan Dipertimbangkan", value: note.recommendationReason }]
+                            : []),
                         ].map(({ label, value }) => (
                           <div key={label}>
                             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>

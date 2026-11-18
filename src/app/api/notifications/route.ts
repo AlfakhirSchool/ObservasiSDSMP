@@ -12,6 +12,7 @@ export async function GET() {
   try {
     // Fetch latest 10 activities
     const notes = await prisma.interviewerNote.findMany({
+      where: { isLocked: true },
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { candidate: true }

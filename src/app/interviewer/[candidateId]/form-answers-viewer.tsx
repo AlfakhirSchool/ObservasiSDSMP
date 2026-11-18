@@ -10,6 +10,7 @@ import {
   HelpCircle,
   QrCode,
   Layers,
+  Pencil,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -32,6 +33,8 @@ interface Props {
   studentAnswers: AnswerEntry[]
   isSd: boolean
   onShowQr: () => void
+  /** Hanya untuk admin: membuka dialog edit jawaban. */
+  onEdit?: () => void
   /** Di layar lebar, kartu mengisi tinggi kolomnya (sejajar dengan kolom sebelah) dan daftar jawaban di-scroll di dalamnya. */
   fill?: boolean
 }
@@ -42,6 +45,7 @@ export default function FormAnswersViewer({
   isSd,
   onShowQr,
   fill = false,
+  onEdit,
 }: Props) {
   // Tab aktif (untuk SMP: orang tua vs siswa)
   const [activeTab, setActiveTab] = useState<"parent" | "student">("parent")
@@ -118,6 +122,16 @@ export default function FormAnswersViewer({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            >
+              <Pencil size={14} aria-hidden="true" />
+              Edit jawaban
+            </button>
+          )}
           <button
             type="button"
             onClick={onShowQr}

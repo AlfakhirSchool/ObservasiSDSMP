@@ -256,7 +256,6 @@ export default function AdminOverviewClient({
     <div className="space-y-6">
       <PageHeader
         title={title}
-        description="Pemantauan progres observasi penerimaan siswa"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Dropdown 1: Tahun Ajaran */}
@@ -489,7 +488,7 @@ export default function AdminOverviewClient({
             <EmptyState
               icon={BarChart3}
               title="Belum ada aktivitas"
-              description="Belum ada siswa baru atau observasi selesai dalam 7 hari terakhir pada periode yang dipilih."
+              description="Tidak ada aktivitas dalam 7 hari terakhir."
               className="h-72"
             />
           )}

@@ -19,7 +19,7 @@ export const TIMER_WARN_SEC = 2 * 60
  * Mrs. Wulan Apringtyas, Mrs. Lu'lu' Luthfiyah.
  * Pewawancara Al-Qur'an (Faisal, Dedi, Fida, Malik, Inggrid, Rhoyan, Nazly, Irfan) sengaja tidak disertakan.
  */
-export const TIMER_USERNAMES: readonly string[] = ["deny", "aini", "anggraini", "arifah", "siti", "wulan", "lulu", "tes"]
+export const TIMER_USERNAMES: readonly string[] = ["deny", "aini", "anggraini", "arifah", "siti", "wulan", "lulu"]
 
 export function hasInterviewTimer(username: string | null | undefined): boolean {
   return !!username && TIMER_USERNAMES.includes(username.trim().toLowerCase())

@@ -155,7 +155,7 @@ export default function RaportSdPageClient({ candidates: initialCandidates, obse
 
       <PageHeader
         title="Raport Observasi SD"
-        description="Pilih nama anak, isi 20 indikator, lalu Simpan. Gunakan Sebelumnya / Selanjutnya untuk menilai anak berikutnya."
+        description="Pilih siswa, isi indikator, lalu Simpan."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link

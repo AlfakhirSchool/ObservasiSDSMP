@@ -1,3 +1,4 @@
+import { canFillQuran } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { logActivity } from "@/lib/activity-log"
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Anda belum login" }, { status: 401 })
 
   const role = session.user.role
-  if (role !== "interviewer" && !role.startsWith("admin")) {
+  if (!canFillQuran(role, session.user.username)) {
     return NextResponse.json({ error: "Anda tidak memiliki akses" }, { status: 403 })
   }
 

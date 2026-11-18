@@ -1,3 +1,5 @@
+import { answerError } from "@/lib/form-validation"
+
 /** Tipe dan logika murni formulir publik (tanpa React) supaya mudah dibaca dan dipakai ulang. */
 
 export type QuestionType = "text" | "long_text" | "number" | "choice" | "rating"
@@ -50,7 +52,7 @@ export function systemQuestions(candidateName: string): { questions: FormQuestio
       {
         id: SYS_NAME,
         text: "Nama Lengkap Ananda",
-        hint: "Periksa penulisan nama ananda di atas. Jika nama ananda salah, boleh langsung diperbaiki dengan menulis ulang nama yang benar di kolom ini.",
+        hint: "Periksa penulisan nama ananda. Biarkan apa adanya jika sudah benar. Jika ada yang salah, tulis ulang nama lengkap yang benar (bukan kata \"benar\" atau keterangan lain).",
         type: "text",
         category: "ORANG TUA",
       },
@@ -105,6 +107,10 @@ export function isVisible(q: FormQuestion, answers: Answers, byId: Map<string, F
 }
 
 export const isMissing = (q: FormQuestion, answers: Answers) => q.required !== false && !(answers[q.id] ?? "").trim()
+
+/** Alasan jawaban belum bisa diterima ("Mohon diisi" atau format salah), atau null bila sudah baik. */
+export const problem = (q: FormQuestion, answers: Answers) =>
+  isMissing(q, answers) ? "Mohon diisi" : answerError(q.text, answers[q.id] ?? "")
 
 export function readDraft(key: string): { answers: Answers; step: number } | null {
   try {

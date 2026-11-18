@@ -1,3 +1,4 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { auth } from "@/lib/auth"
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic"
 
 export default async function AdminRekapPage() {
   const session = await auth()
-  if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
+  if (!session || !canViewMonitoring(session.user?.role)) redirect("/login")
 
   const [sdRaport, sdOrangTua, smpOrangTua, smpSiswa, smpAkademik] = await Promise.all([
     getRekapSd(),

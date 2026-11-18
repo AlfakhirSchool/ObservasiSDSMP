@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { getCandidateById } from "@/lib/data-service"
-import { redirect, notFound } from "next/navigation"
+import { isAdminRole, canWriteObservation } from "@/lib/permissions"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 import CandidateDetailClient from "./candidate-detail-client"
 import { generateCandidateToken } from "@/lib/candidate-auth"
@@ -95,8 +96,9 @@ export default async function CandidateDetailPage({
       existingNote={existingNote}
       savedSummary={savedSummary}
       interviewerName={session.user.name ?? ""}
-      canDownload={session.user.role.startsWith("admin")}
-      canUnlock={session.user.role.startsWith("admin")}
+      canDownload={isAdminRole(session.user.role)}
+      canUnlock={isAdminRole(session.user.role)}
+      readOnly={!canWriteObservation(session.user.role, session.user.username)}
       candidateToken={generateCandidateToken(candidate.id)}
     />
   )

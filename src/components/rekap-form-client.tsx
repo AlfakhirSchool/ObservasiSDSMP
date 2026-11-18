@@ -6,7 +6,7 @@ import { CheckCircle2, CircleDashed, Clock, Table2, Users } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { RekapToolbar, cocokStatus, milikSayaDulu, type StatusFilter } from "@/components/rekap-toolbar"
 import { StatCard } from "@/components/ui/stat-card"
-import { filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue } from "@/lib/period"
+import { PERIOD_ALL, filterByPeriod, listPeriods, periodeAwalBerisi, type PeriodFilterValue } from "@/lib/period"
 import type { RekapFormData, RekapFormRow } from "@/lib/rekap-form"
 import { cn } from "@/lib/utils"
 import { eksporRekapForm } from "@/lib/rekap-excel"
@@ -43,7 +43,10 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
     const q = query.trim().toLowerCase()
     const cocok = scoped.filter(
       (r) =>
-        (!q || r.nama.toLowerCase().includes(q) || Object.values(r.jawaban).some((v) => v.toLowerCase().includes(q))) &&
+        (!q ||
+          r.nama.toLowerCase().includes(q) ||
+          r.namaDaftar.toLowerCase().includes(q) ||
+          Object.values(r.jawaban).some((v) => v.toLowerCase().includes(q))) &&
         cocokStatus(r.wajibTerjawab, data.wajibTotal, status)
     )
     return isSd ? cocok : milikSayaDulu(cocok, ownerName)
@@ -89,6 +92,21 @@ export function RekapFormClient({ data, ownerName, detailBase, pengisi, isSd }: 
         <StatCard label="Sebagian" value={sebagian} icon={Clock} tone="amber" hint="Belum semua dijawab" />
         <StatCard label="Belum diisi" value={belum} icon={CircleDashed} tone="slate" />
       </div>
+
+      {rows.length > inPeriod.length && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>
+            {rows.length - inPeriod.length} siswa dari periode lain disembunyikan oleh filter periode, termasuk yang belum mengisi formulir.
+          </span>
+          <button
+            type="button"
+            onClick={() => setPeriod(PERIOD_ALL)}
+            className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+          >
+            Tampilkan semua
+          </button>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <RekapToolbar

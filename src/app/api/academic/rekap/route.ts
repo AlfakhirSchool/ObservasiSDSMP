@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   const role = user.role as string
-  if (role !== "interviewer" && !role.startsWith("admin")) {
+  if (role !== "interviewer" && role !== "quran_observer" && role !== "committee" && !role.startsWith("admin")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

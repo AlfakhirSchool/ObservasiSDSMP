@@ -10,6 +10,8 @@ const ROLE_MAP = {
   ADMIN_SD: "admin_sd",
   ADMIN_SMP: "admin_smp",
   INTERVIEWER: "interviewer",
+  QURAN_OBSERVER: "quran_observer", // Pewawancara + mengisi Al-Qur'an
+  COMMITTEE: "committee", // Panitia: hanya lihat
 } as const
 
 type Role = (typeof ROLE_MAP)[keyof typeof ROLE_MAP] | "unauthorized"
@@ -84,6 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name ?? user.username,
           // Dipakai sebagai identitas pewawancara di catatan; fallback ke username.
           email: user.email ?? user.username,
+          username: user.username,
           role: ROLE_MAP[user.role],
         }
       },
@@ -95,11 +98,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as Role
       }
       if (token.sub) session.user.id = token.sub
+      session.user.username = typeof token.username === "string" ? token.username : null
       return session
     },
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role ?? "unauthorized"
+        token.username = user.username ?? null
+      } else if (token.username === undefined && token.sub) {
+        // Sesi yang dibuat sebelum username masuk ke token: isi sekali dari database agar aturan akses langsung berlaku.
+        const account = await prisma.user.findUnique({ where: { id: token.sub }, select: { username: true } })
+        token.username = account?.username ?? null
       }
       return token
     },

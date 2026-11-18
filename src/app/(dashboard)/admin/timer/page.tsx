@@ -1,3 +1,4 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
@@ -11,6 +12,6 @@ export const dynamic = "force-dynamic"
 
 export default async function AdminTimerPage() {
   const session = await auth()
-  if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
+  if (!session || !canViewMonitoring(session.user?.role)) redirect("/login")
   return <TimerMonitorClient />
 }

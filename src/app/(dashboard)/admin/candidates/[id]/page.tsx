@@ -1,3 +1,4 @@
+import { canViewMonitoring, isAdminRole } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getCandidateById } from "@/lib/data-service"
 import { redirect } from "next/navigation"
@@ -23,7 +24,8 @@ export default async function AdminCandidateDetailPage({
   params: Promise<{ id: string }>
 }) {
   const session = await auth()
-  if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
+  if (!session || !canViewMonitoring(session.user?.role)) redirect("/login")
+  const isAdmin = isAdminRole(session.user.role)
 
   const { id } = await params
   const candidate = await getCandidateById(id)
@@ -62,8 +64,10 @@ export default async function AdminCandidateDetailPage({
       existingNote={existingNote}
       savedSummary={savedSummary}
       interviewerName={session.user.name ?? ""}
-      canDownload
-      canUnlock
+      canDownload={isAdmin}
+      canUnlock={isAdmin}
+      canEditAnswers={isAdmin}
+      readOnly={!isAdmin}
     />
   )
 }

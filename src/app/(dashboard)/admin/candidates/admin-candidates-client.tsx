@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { startPolling } from "@/lib/polling"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/layout/page-header"
@@ -61,11 +62,13 @@ interface Candidate {
 
 interface Props {
   candidates: Candidate[]
+  /** Panitia: hanya lihat. Semua kontrol tulis disembunyikan/dinonaktifkan (server tetap menolak lewat assertAdmin). */
+  readOnly?: boolean
 }
 
 const thCls = "px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap border-b border-slate-200"
 const controlCls = "h-10 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-const cellSelectCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 cursor-pointer outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+const cellSelectCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 cursor-pointer outline-none transition-colors hover:border-slate-300 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-default disabled:bg-slate-50 disabled:opacity-100 disabled:hover:border-slate-200"
 const iconBtnCls = "flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
 const menuItemCls = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:opacity-50"
 const labelCls = "block text-sm font-medium text-slate-700"
@@ -110,7 +113,7 @@ function GradePill({ score }: { score: number }) {
   return <span className={cn(pillCls, tone)}>{grade}</span>
 }
 
-export default function AdminCandidatesClient({ candidates: initialCandidates }: Props) {
+export default function AdminCandidatesClient({ candidates: initialCandidates, readOnly = false }: Props) {
   const router = useRouter()
   const [candidates, setCandidates] = useState(initialCandidates)
   const [search, setSearch] = useState("")
@@ -421,21 +424,23 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
     <div className="space-y-6">
       <PageHeader
         title="Daftar Siswa"
-        description="Pantau data siswa dan progres observasi Unit SD & SMP"
+        description="Data siswa dan progres observasi SD & SMP"
         actions={
-          <>
-            <Button variant="outline" onClick={() => setSuratBulkOpen(true)} className="h-10 gap-2 px-4">
-              <FileText size={16} aria-hidden="true" />
-              Unduh Raport
-            </Button>
-            <Button
-              onClick={() => setIsAddingCandidate(true)}
-              className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-            >
-              <Plus size={16} aria-hidden="true" />
-              Tambah Siswa
-            </Button>
-          </>
+          readOnly ? undefined : (
+            <>
+              <Button variant="outline" onClick={() => setSuratBulkOpen(true)} className="h-10 gap-2 px-4">
+                <FileText size={16} aria-hidden="true" />
+                Unduh Raport
+              </Button>
+              <Button
+                onClick={() => setIsAddingCandidate(true)}
+                className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+              >
+                <Plus size={16} aria-hidden="true" />
+                Tambah Siswa
+              </Button>
+            </>
+          )
         }
       />
 
@@ -483,6 +488,8 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            {!readOnly && (
+              <>
             <input
               type="file"
               id="excel-upload"
@@ -503,6 +510,8 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
               )}
               Import Excel
             </Button>
+              </>
+            )}
 
             <div className="relative" ref={exportRef}>
               <Button
@@ -566,15 +575,17 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
           <EmptyState
             icon={Users}
             title="Tidak ada data siswa ditemukan"
-            description="Coba ubah kata kunci atau filter, atau tambahkan data siswa baru."
+            description="Ubah kata kunci atau filter, atau tambah siswa."
             action={
-              <Button
-                onClick={() => setIsAddingCandidate(true)}
-                className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-              >
-                <Plus size={16} aria-hidden="true" />
-                Tambah Siswa
-              </Button>
+              readOnly ? undefined : (
+                <Button
+                  onClick={() => setIsAddingCandidate(true)}
+                  className="h-10 gap-2 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  Tambah Siswa
+                </Button>
+              )
             }
           />
         ) : (
@@ -605,13 +616,13 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => setEditingCandidate(c)}
+                          onClick={() => (readOnly ? router.push(`/admin/candidates/${c.id}`) : setEditingCandidate(c))}
                           className="group/name block text-left"
-                          title="Klik untuk mengedit data siswa"
+                          title={readOnly ? "Lihat detail siswa" : "Klik untuk mengedit data siswa"}
                         >
                           <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 group-hover/name:text-emerald-700">
                             <span>{displayName}</span>
-                            <Pencil size={13} className="text-slate-400 opacity-60 transition-opacity group-hover/name:opacity-100 group-hover/name:text-emerald-600" />
+                            {!readOnly && <Pencil size={13} className="text-slate-400 opacity-60 transition-opacity group-hover/name:opacity-100 group-hover/name:text-emerald-600" />}
                           </div>
                         </button>
                         <div className="mt-0.5 text-sm text-slate-500">
@@ -625,6 +636,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                         <div className="flex flex-col gap-1">
                           <select
                             aria-label={`Gelombang ${displayName}`}
+                            disabled={readOnly}
                             value={c.gelombang}
                             onChange={async (e) => {
                               const val = Number(e.target.value)
@@ -652,6 +664,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                       <td className="px-4 py-3">
                         <select
                           aria-label={`Jenjang ${displayName}`}
+                          disabled={readOnly}
                           defaultValue={c.level}
                           onChange={async (e) => {
                             const value = e.target.value
@@ -674,6 +687,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                         {c.level === "SMP" ? (
                           <select
                             aria-label={`Ruangan ${displayName}`}
+                            disabled={readOnly}
                             defaultValue={c.room || ""}
                             onChange={async (e) => {
                               await updateCandidateRoom(c.id, e.target.value)
@@ -690,6 +704,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                       <td className="px-4 py-3">
                         <select
                           aria-label={`Pewawancara ${displayName}`}
+                          disabled={readOnly}
                           defaultValue={
                             c.level === "SD" && (!c.selectedInterviewer || c.selectedInterviewer === "Semua Observer SD")
                               ? "Semua Observer SD"
@@ -726,6 +741,16 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                         {formatShortDate(c.createdAt)}
                       </td>
                       <td className="sticky right-0 z-10 bg-white px-4 py-3 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)] transition-colors group-hover:bg-slate-50">
+                        {readOnly ? (
+                          <div className="flex items-center justify-end">
+                            <Link
+                              href={`/admin/candidates/${c.id}`}
+                              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                            >
+                              Lihat detail
+                            </Link>
+                          </div>
+                        ) : (
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
@@ -777,6 +802,7 @@ export default function AdminCandidatesClient({ candidates: initialCandidates }:
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   )

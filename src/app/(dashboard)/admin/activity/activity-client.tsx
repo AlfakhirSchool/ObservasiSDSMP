@@ -59,6 +59,8 @@ const ROLE_OPTIONS = [
   { label: "Admin SD", value: "ADMIN_SD" },
   { label: "Admin SMP", value: "ADMIN_SMP" },
   { label: "Pewawancara", value: "INTERVIEWER" },
+  { label: "Observasi Al-Qur'an", value: "QURAN_OBSERVER" },
+  { label: "Panitia", value: "COMMITTEE" },
   { label: "Publik (Ortu/Siswa)", value: "publik" },
 ]
 
@@ -83,13 +85,13 @@ function getActionMeta(action: string) {
   if (action.startsWith("CALON_")) {
     return { label, color: "bg-sky-50 text-sky-700 border-sky-200", icon: UserCheck }
   }
-  if (action === "CATATAN_KIRIM") {
+  if (action === "CATATAN_KIRIM" || action === "CATATAN_DRAF") {
     return { label, color: "bg-amber-50 text-amber-700 border-amber-200", icon: ClipboardList }
   }
   if (action === "RINGKASAN_AI") {
     return { label, color: "bg-indigo-50 text-indigo-700 border-indigo-200", icon: Sparkles }
   }
-  if (action === "FORM_ISI") {
+  if (action === "FORM_ISI" || action === "FORM_UBAH_ADMIN") {
     return { label, color: "bg-teal-50 text-teal-700 border-teal-200", icon: FileText }
   }
   if (action === "TES_AKADEMIK") {
@@ -172,7 +174,7 @@ export default function ActivityClient({ initialLogs, initialNextCursor }: Activ
     <div className="space-y-6">
       <PageHeader
         title="Riwayat Aktivitas"
-        description="Audit log sistem secara real-time: memantau login, pengisian formulir, nilai tes, catatan observasi, dan perubahan data."
+        description="Login, pengisian formulir, nilai tes, catatan, dan perubahan data."
         actions={
           <button
             type="button"
@@ -243,7 +245,7 @@ export default function ActivityClient({ initialLogs, initialNextCursor }: Activ
           <EmptyState
             icon={History}
             title="Belum ada riwayat aktivitas"
-            description="Tidak ada catatan audit yang cocok dengan kriteria pencarian atau filter yang dipilih."
+            description="Tidak ada catatan yang cocok dengan filter."
           />
         ) : (
           <div className="divide-y divide-slate-100">

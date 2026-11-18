@@ -165,7 +165,7 @@ export default function AdminQuestionsClient({ initialQuestions }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Soal Observasi"
-        description="Atur pertanyaan observasi untuk orang tua dan calon siswa per jenjang"
+        description="Pertanyaan untuk orang tua dan siswa per jenjang"
         actions={
           <>
             <Button variant="outline" onClick={handleSync}>

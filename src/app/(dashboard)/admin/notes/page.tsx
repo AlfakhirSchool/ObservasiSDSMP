@@ -16,6 +16,7 @@ export default async function AdminNotesPage() {
   if (!session || !session.user?.role?.startsWith("admin")) redirect("/login")
 
   const rows = await prisma.interviewerNote.findMany({
+    where: { isLocked: true },
     include: { 
       candidate: { 
         select: { 
@@ -40,6 +41,7 @@ export default async function AdminNotesPage() {
     familySupport: n.familySupport,
     characterNotes: n.characterNotes,
     recommendation: RECOMMENDATIONS.find((r) => r === n.recommendation) ?? "Pertimbangkan",
+    recommendationReason: n.recommendationReason,
     submittedAt: n.createdAt.toISOString(),
     isLocked: n.isLocked,
     aiSummary: n.candidate.aiSummary?.summary ?? null,

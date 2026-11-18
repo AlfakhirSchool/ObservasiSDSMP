@@ -31,11 +31,11 @@ export default async function InterviewerDashboardPortalPage() {
   // Ambil ringkasan data SD dan SMP secara cepat
   const [sdTotal, sdForms, sdDone, smpTotal, smpForms, smpDone] = await Promise.all([
     prisma.candidate.count({ where: { level: "SD" } }),
-    prisma.candidate.count({ where: { level: "SD", status: { not: "PENDING" } } }),
-    prisma.candidate.count({ where: { level: "SD", notes: { some: {} } } }),
+    prisma.candidate.count({ where: { level: "SD", formAnswers: { some: {} } } }),
+    prisma.candidate.count({ where: { level: "SD", notes: { some: { isLocked: true } } } }),
     prisma.candidate.count({ where: { level: "SMP" } }),
-    prisma.candidate.count({ where: { level: "SMP", status: { not: "PENDING" } } }),
-    prisma.candidate.count({ where: { level: "SMP", notes: { some: {} } } }),
+    prisma.candidate.count({ where: { level: "SMP", formAnswers: { some: {} } } }),
+    prisma.candidate.count({ where: { level: "SMP", notes: { some: { isLocked: true } } } }),
   ])
 
   return (

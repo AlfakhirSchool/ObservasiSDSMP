@@ -163,7 +163,7 @@ export default function AcademicManagerClient() {
         title="Bank Soal Akademik"
         description={
           <>
-            Buat dan atur soal tes akademik calon siswa
+            Soal tes akademik calon siswa
             {!loading && (
               <span className="mt-1 block font-medium tabular-nums text-slate-700">
                 {questions.length} soal

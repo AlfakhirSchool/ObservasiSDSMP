@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { INTERVIEWERS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
-import { createUser, deleteUser, resetUserPassword, updateUserName } from "@/lib/user-actions"
+import { createUser, deleteUser, resetUserPassword, updateUserName, updateUserRole } from "@/lib/user-actions"
 
-type Role = "ADMIN" | "ADMIN_SD" | "ADMIN_SMP" | "INTERVIEWER"
+type Role = "ADMIN" | "ADMIN_SD" | "ADMIN_SMP" | "INTERVIEWER" | "QURAN_OBSERVER" | "COMMITTEE"
 
 interface UserRow {
   id: string
@@ -27,9 +27,11 @@ const ROLE_META: Record<Role, { label: string; pill: string }> = {
   ADMIN_SD: { label: "Admin SD", pill: "bg-orange-50 text-orange-700 ring-orange-200" },
   ADMIN_SMP: { label: "Admin SMP", pill: "bg-teal-50 text-teal-700 ring-teal-200" },
   INTERVIEWER: { label: "Pewawancara", pill: "bg-blue-50 text-blue-700 ring-blue-200" },
+  QURAN_OBSERVER: { label: "Observasi Al-Qur'an", pill: "bg-purple-50 text-purple-700 ring-purple-200" },
+  COMMITTEE: { label: "Panitia (Lihat Saja)", pill: "bg-amber-50 text-amber-700 ring-amber-200" },
 }
 
-const ROLE_ORDER: Role[] = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER"]
+const ROLE_ORDER: Role[] = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER", "QURAN_OBSERVER", "COMMITTEE"]
 
 const BTN_BASE =
   "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
@@ -78,6 +80,7 @@ export default function UsersClient({ users, currentUserId }: Props) {
 
   const [editTarget, setEditTarget] = useState<UserRow | null>(null)
   const [editName, setEditName] = useState("")
+  const [editRole, setEditRole] = useState<Role>("INTERVIEWER")
   const [editError, setEditError] = useState("")
 
   const openAdd = () => {
@@ -125,6 +128,7 @@ export default function UsersClient({ users, currentUserId }: Props) {
   const openEdit = (user: UserRow) => {
     setEditTarget(user)
     setEditName(user.name)
+    setEditRole(user.role)
     setEditError("")
   }
 
@@ -133,12 +137,18 @@ export default function UsersClient({ users, currentUserId }: Props) {
     if (!editTarget) return
     setEditError("")
     startTransition(async () => {
-      const res = await updateUserName(editTarget.id, editName)
-      if (!res.ok) {
-        setEditError(res.error)
+      const nameRes = editName.trim() === editTarget.name ? ({ ok: true } as const) : await updateUserName(editTarget.id, editName)
+      if (!nameRes.ok) {
+        setEditError(nameRes.error)
         return
       }
-      toast.success("Nama diperbarui")
+      const roleRes = await updateUserRole(editTarget.id, editRole)
+      if (!roleRes.ok) {
+        setEditError(roleRes.error)
+        router.refresh()
+        return
+      }
+      toast.success("Pengguna diperbarui")
       setEditTarget(null)
       router.refresh()
     })
@@ -165,7 +175,7 @@ export default function UsersClient({ users, currentUserId }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Pengguna"
-        description="Kelola akun yang dapat masuk ke dashboard. Pewawancara masuk dengan username dan password."
+        description="Akun yang dapat masuk ke dashboard."
         actions={
           <button type="button" onClick={openAdd} className={BTN_PRIMARY}>
             <Plus size={16} aria-hidden="true" /> Tambah Pengguna
@@ -178,7 +188,7 @@ export default function UsersClient({ users, currentUserId }: Props) {
           <EmptyState
             icon={UserCog}
             title="Belum ada pengguna"
-            description="Tambahkan pengguna pertama agar dapat masuk ke dashboard."
+            description="Tambahkan pengguna pertama."
           />
         ) : (
           <div className="overflow-x-auto">
@@ -212,8 +222,8 @@ export default function UsersClient({ users, currentUserId }: Props) {
                           type="button"
                           onClick={() => openEdit(u)}
                           className={ICON_BTN}
-                          aria-label={`Ubah nama ${u.name}`}
-                          title="Ubah nama"
+                          aria-label={`Ubah nama dan peran ${u.name}`}
+                          title="Ubah nama / peran"
                         >
                           <Pencil size={16} aria-hidden="true" />
                         </button>
@@ -348,11 +358,11 @@ export default function UsersClient({ users, currentUserId }: Props) {
         </form>
       </Dialog>
 
-      {/* Ubah nama */}
+      {/* Ubah nama & peran */}
       <Dialog open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
         <form onSubmit={submitEdit}>
           <DialogHeader className="border-b border-slate-100 px-6 py-4">
-            <DialogTitle>Ubah Nama</DialogTitle>
+            <DialogTitle>Ubah Pengguna</DialogTitle>
           </DialogHeader>
           <DialogContent className="space-y-4 pt-5">
             <Input
@@ -363,7 +373,26 @@ export default function UsersClient({ users, currentUserId }: Props) {
               required
               autoComplete="off"
             />
-            {editTarget?.role === "INTERVIEWER" && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-role" className="text-sm font-medium text-slate-700">Peran</label>
+              <select
+                id="edit-role"
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value as Role)}
+                disabled={editTarget?.id === currentUserId}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+              >
+                {ROLE_ORDER.map((r) => (
+                  <option key={r} value={r}>{ROLE_META[r].label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500">
+                {editTarget?.id === currentUserId
+                  ? "Peran akun yang sedang dipakai tidak dapat diubah."
+                  : "Peran baru berlaku setelah pengguna masuk ulang."}
+              </p>
+            </div>
+            {editRole === "INTERVIEWER" && (
               <p className="text-xs text-slate-500">
                 Untuk pewawancara, nama harus sama persis dengan nama di kolom Pewawancara pada data siswa agar siswanya tampil.
               </p>

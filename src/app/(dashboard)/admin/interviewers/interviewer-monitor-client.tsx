@@ -51,7 +51,6 @@ export default function InterviewerMonitorClient({ interviewers }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Monitor Pewawancara"
-        description="Pantau progres setiap pewawancara dalam proses observasi"
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -66,7 +65,7 @@ export default function InterviewerMonitorClient({ interviewers }: Props) {
           <EmptyState
             icon={UserCheck}
             title="Belum ada pewawancara"
-            description="Akun pewawancara akan muncul di sini setelah dibuat."
+            description="Muncul setelah akun dibuat."
           />
         ) : (
           <div className="overflow-x-auto">

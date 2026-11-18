@@ -1,12 +1,13 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getDashboardStats } from "@/lib/data-service"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
   const session = await auth()
-  const role = session?.user?.role as string
+  const role = session?.user?.role
   
-  if (!role || !role.startsWith("admin")) {
+  if (!canViewMonitoring(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

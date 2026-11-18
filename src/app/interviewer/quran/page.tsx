@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
+import { isQuranObserver } from "@/lib/quran-observer"
 import type { Metadata } from "next"
 import { isQuranNilai } from "@/lib/quran"
 import QuranPageClient from "./quran-page-client"
@@ -56,7 +57,7 @@ export default async function QuranPage({ searchParams }: Props) {
     <QuranPageClient
       rows={rows}
       activeUnit={activeUnit}
-      homeHref={isAdmin ? "/admin" : activeUnit === "SD" ? "/interviewer/sd" : "/interviewer/smp"}
+      homeHref={isAdmin ? "/admin" : isQuranObserver(session.user.username) ? null : activeUnit === "SD" ? "/interviewer/sd" : "/interviewer/smp"}
       isAdmin={isAdmin}
     />
   )

@@ -31,7 +31,7 @@ export async function getDashboardStats(level?: string, academicYear?: string, g
   if (gelombang && gelombang !== "all") candidateFilter.gelombang = Number(gelombang)
 
   const notesWhere: Prisma.InterviewerNoteWhereInput =
-    Object.keys(candidateFilter).length > 0 ? { candidate: candidateFilter } : {}
+    Object.keys(candidateFilter).length > 0 ? { isLocked: true, candidate: candidateFilter } : { isLocked: true }
   const completed = await prisma.interviewerNote.count({ 
     where: { 
       ...notesWhere,
@@ -263,7 +263,7 @@ export async function getInterviewerMonitor(): Promise<InterviewerMonitorRow[]> 
         select: {
           selectedInterviewer: true,
           status: true,
-          _count: { select: { notes: true } },
+          notes: { where: { isLocked: true }, select: { id: true } },
         },
       })
     : []
@@ -274,7 +274,7 @@ export async function getInterviewerMonitor(): Promise<InterviewerMonitorRow[]> 
     const entry = totals.get(c.selectedInterviewer) ?? { assigned: 0, withForm: 0, notesDone: 0 }
     entry.assigned += 1
     if (c.status !== "PENDING") entry.withForm += 1
-    if (c._count.notes > 0) entry.notesDone += 1
+    if (c.notes.length > 0) entry.notesDone += 1
     totals.set(c.selectedInterviewer, entry)
   }
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { hasInterviewTimer } from "@/lib/interview-timer"
+import { isQuranObserver } from "@/lib/quran-observer"
 import { BrandLogo } from "@/components/layout/brand-logo"
 import { LogoutButton } from "@/components/layout/logout-button"
 import { UserChip } from "@/components/layout/user-chip"
@@ -18,6 +19,7 @@ export default async function InterviewerLayout({
   const session = await auth()
   if (!session) redirect("/login")
   const isAdmin = session.user?.role?.startsWith("admin")
+  const quranOnly = session.user.role === "interviewer" && isQuranObserver(session.user.username)
 
   // Timer 8 menit hanya untuk pewawancara orang tua; dikenali dari username akun (bukan nama tampilan).
   let timerEnabled = false
@@ -32,15 +34,15 @@ export default async function InterviewerLayout({
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#0D1B2A] text-white">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 sm:px-6 lg:h-16 lg:flex-nowrap lg:justify-between lg:gap-4 lg:px-8 lg:py-0">
           <Link
-            href="/interviewer"
+            href={quranOnly ? "/interviewer/quran" : "/interviewer"}
             className="order-1 flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
           >
             <BrandLogo role="interviewer" />
           </Link>
 
-          {/* Menu unit: baris kedua yang bisa digeser di HP, sebaris di desktop */}
+          {/* Menu unit: baris kedua yang bisa digeser di HP, sebaris di desktop. Observer Al-Qur'an tidak punya menu unit. */}
           <div className="order-3 w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden empty:hidden lg:order-2 lg:flex lg:w-auto lg:flex-1 lg:justify-end lg:overflow-visible">
-            <InterviewerNav />
+            {!quranOnly && <InterviewerNav />}
           </div>
 
           <div className="order-2 ml-auto flex shrink-0 items-center gap-2 sm:gap-3 lg:order-3 lg:ml-0">

@@ -9,6 +9,7 @@ import {
   SYS_PHONE,
   buildSteps,
   isMissing,
+  problem,
   isVisible,
   readDraft,
   systemQuestions,
@@ -90,7 +91,7 @@ function FormWizard({ candidate, questions, role, token }: Props) {
   const percent = required.length === 0 ? 100 : Math.round((answered / required.length) * 100)
   const totalQuestions = steps.reduce((sum, s) => sum + s.questions.length, 0)
 
-  const missingIn = (s: Step) => visibleOf(s).filter((q) => isMissing(q, answers))
+  const missingIn = (s: Step) => visibleOf(s).filter((q) => problem(q, answers) !== null)
 
   const focusQuestion = (id: string) => {
     requestAnimationFrame(() => document.getElementById(`q-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }))
@@ -349,9 +350,10 @@ function FormWizard({ candidate, questions, role, token }: Props) {
 
           <form onSubmit={(e) => e.preventDefault()} noValidate className="space-y-3">
             {visibleQuestions.map((q, i) => {
-              const hasError = errors.has(q.id) && isMissing(q, answers)
+              const message = errors.has(q.id) ? problem(q, answers) : null
+              const hasError = message !== null
               const optional = q.required === false
-              const filled = (answers[q.id] ?? "").trim() !== ""
+              const filled = (answers[q.id] ?? "").trim() !== "" && !hasError
               return (
                 <section
                   key={q.id}
@@ -389,7 +391,7 @@ function FormWizard({ candidate, questions, role, token }: Props) {
                       {hasError && (
                         <p role="alert" className="flex items-center gap-1.5 text-[13px] font-medium text-red-600">
                           <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          Mohon diisi
+                          {message}
                         </p>
                       )}
                     </div>
@@ -401,7 +403,7 @@ function FormWizard({ candidate, questions, role, token }: Props) {
 
           {errors.size > 0 && missingIn(step).length > 0 && (
             <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700">
-              Ada {missingIn(step).length} pertanyaan yang belum diisi. Lengkapi dulu yang ditandai merah.
+              Ada {missingIn(step).length} pertanyaan yang belum diisi atau perlu diperbaiki. Periksa yang ditandai merah.
             </p>
           )}
           {serverError && (

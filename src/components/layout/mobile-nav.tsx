@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react"
 import { NavLink } from "@/components/layout/nav-link"
 import { LogoutButton } from "@/components/layout/logout-button"
 import { UserChip } from "@/components/layout/user-chip"
-import { INTERVIEWER_NAV_ITEMS, MAIN_NAV_ITEMS } from "@/components/layout/nav-items"
+import { INTERVIEWER_NAV_ITEMS, mainNavFor, showsInterviewerNav } from "@/components/layout/nav-items"
 import type { UserRole } from "@/components/layout/user-display"
 
 interface MobileNavProps {
@@ -57,23 +57,25 @@ export function MobileNav({ name, role }: MobileNavProps) {
             className="absolute inset-x-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-white/10 bg-[#0D1B2A] px-4 py-4 shadow-lg"
           >
             <nav aria-label="Menu utama" className="flex flex-col gap-1">
-              {MAIN_NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+              {mainNavFor(role).map(({ href, label, icon: Icon }) => (
                 <NavLink key={href} href={href} className="py-2.5">
                   <Icon size={16} aria-hidden="true" /> {label}
                 </NavLink>
               ))}
             </nav>
 
-            <div className="mt-4 border-t border-white/10 pt-4">
-              <p className="px-3 pb-2 text-xs font-medium text-slate-400">Pewawancara</p>
-              <div className="flex flex-col gap-1">
-                {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
-                  <NavLink key={href} href={href} className="py-2.5">
-                    <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> Unit {label}
-                  </NavLink>
-                ))}
+            {showsInterviewerNav(role) && (
+              <div className="mt-4 border-t border-white/10 pt-4">
+                <p className="px-3 pb-2 text-xs font-medium text-slate-400">Pewawancara</p>
+                <div className="flex flex-col gap-1">
+                  {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
+                    <NavLink key={href} href={href} className="py-2.5">
+                      <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> Unit {label}
+                    </NavLink>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
               <UserChip name={name} role={role} />

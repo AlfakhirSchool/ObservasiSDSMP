@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/input"
 import FormAnswersViewer from "./form-answers-viewer"
+import { EditAnswersDialog } from "./edit-answers-dialog"
 import { Dialog } from "@/components/ui/dialog"
 import { SkeletonSummary } from "@/components/ui/skeleton"
 import { StudentTimerCard, useInterviewTimer } from "@/components/interview-timer"
@@ -56,6 +57,10 @@ interface Props {
   canDownload: boolean
   /** Admin boleh membuka kunci catatan yang sudah dikirim agar bisa diisi ulang. */
   canUnlock: boolean
+  /** Hanya lihat (observasi Al-Qur'an, panitia): form catatan, ringkasan AI, dan akses tes disembunyikan. */
+  readOnly?: boolean
+  /** Admin boleh melengkapi atau memperbaiki jawaban formulir atas nama orang tua/siswa. */
+  canEditAnswers?: boolean
   candidateToken?: string
 }
 
@@ -135,8 +140,11 @@ export default function CandidateDetailClient({
   canDownload,
   canUnlock,
   candidateToken,
+  readOnly = false,
+  canEditAnswers = false,
 }: Props) {
   const router = useRouter()
+  const [showEditAnswers, setShowEditAnswers] = useState(false)
   const { remove: removeTimer } = useInterviewTimer()
 
   // Notes form state
@@ -149,6 +157,8 @@ export default function CandidateDetailClient({
     const saved = existingNote?.recommendation
     return isRecommendation(saved) ? saved : ""
   })
+  const [recommendationReason, setRecommendationReason] = useState(existingNote?.recommendationReason || "")
+  const [showErrors, setShowErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [confirmUnlock, setConfirmUnlock] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
@@ -221,9 +231,15 @@ export default function CandidateDetailClient({
     }
   }
 
-  const handleSubmitNote = async () => {
-    if (!recommendation) {
-      toast.error("Pilih rekomendasi terlebih dahulu")
+  const handleSubmitNote = async (lock: boolean) => {
+    if (lock && !canSubmit) {
+      setShowErrors(true)
+      setShowConfirm(false)
+      toast.error(`Belum lengkap: ${missingFields.join(", ")}`)
+      return
+    }
+    if (!lock && !(observation || academicAssessment || familySupport || characterNotes || otherNotes || recommendation)) {
+      toast.error("Isi minimal satu kolom sebelum menyimpan draf")
       return
     }
     setSubmitting(true)
@@ -239,13 +255,15 @@ export default function CandidateDetailClient({
           characterNotes,
           otherNotes,
           recommendation,
+          recommendationReason,
           aiSummary: summary || "",
+          lock,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan")
-      toast.success("Catatan berhasil disimpan dan dikunci!")
-      removeTimer(candidate.id)
+      toast.success(lock ? "Catatan berhasil disimpan dan dikunci!" : "Draf catatan tersimpan. Masih bisa diedit.")
+      if (lock) removeTimer(candidate.id)
       setShowConfirm(false)
       router.refresh()
     } catch (err: unknown) {
@@ -265,12 +283,16 @@ export default function CandidateDetailClient({
   const showAcademic = candidate.level === "SMP"
   const unitColor = candidate.level === "SMP" ? "#0D5C63" : "#E67E22"
 
+  const hasForm = candidate.formAnswers.length > 0
+  const needsReason = recommendation === "Pertimbangkan" || recommendation === "Tolak"
   const missingFields = [
-    !observation && "observasi umum",
-    !academicAssessment && "kesiapan akademik",
-    !familySupport && "dukungan keluarga",
-    !characterNotes && "karakter & sikap",
+    !hasForm && "formulir dari orang tua (belum diisi)",
+    !observation.trim() && "observasi umum",
+    !academicAssessment.trim() && "kesiapan akademik",
+    !familySupport.trim() && "dukungan keluarga",
+    !characterNotes.trim() && "karakter & sikap",
     !recommendation && "rekomendasi",
+    needsReason && !recommendationReason.trim() && (recommendation === "Tolak" ? "alasan ditolak" : "alasan dipertimbangkan"),
   ].filter((v): v is string => Boolean(v))
   const canSubmit = missingFields.length === 0
 
@@ -279,6 +301,9 @@ export default function CandidateDetailClient({
     { label: "Kesiapan akademik", value: existingNote?.academicAssessment },
     { label: "Dukungan keluarga", value: existingNote?.familySupport },
     { label: "Karakter & sikap", value: existingNote?.characterNotes },
+    ...(existingNote?.recommendationReason
+      ? [{ label: existingNote.recommendation === "Tolak" ? "Alasan ditolak" : "Alasan dipertimbangkan", value: existingNote.recommendationReason }]
+      : []),
     ...(existingNote?.otherNotes ? [{ label: "Catatan tambahan", value: existingNote.otherNotes }] : []),
   ]
 
@@ -299,7 +324,7 @@ export default function CandidateDetailClient({
     { label: "Tahun ajaran", value: candidate.academicYear || "-" },
     { label: "Pewawancara", value: candidate.selectedInterviewer || "Belum ditunjuk" },
     { label: "Tanggal daftar", value: formatDate(candidate.createdAt) },
-    { label: "Formulir", value: candidate.status === "PENDING" ? "Belum diisi" : "Sudah diisi" },
+    { label: "Formulir", value: hasForm ? "Sudah diisi" : "Belum diisi" },
   ]
 
   return (
@@ -355,7 +380,7 @@ export default function CandidateDetailClient({
       </div>
 
       {/* TIMER WAWANCARA (hanya tampil untuk pewawancara orang tua; informasi saja) */}
-      {!isLocked && <StudentTimerCard candidateId={candidate.id} name={candidate.name} unit={candidate.level} />}
+      {!isLocked && !readOnly && <StudentTimerCard candidateId={candidate.id} name={candidate.name} unit={candidate.level} />}
 
       {/* SECTION ATAS: DATA SISWA & RINGKASAN AI (BERDAMPINGAN) */}
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
@@ -400,10 +425,11 @@ export default function CandidateDetailClient({
               <EmptyState
                 icon={Sparkles}
                 title="Belum ada ringkasan"
-                description="Buat ringkasan AI untuk membantu membaca profil siswa dengan cepat."
+                description="Klik untuk membuat ringkasan AI."
                 className="py-6"
               />
             )}
+            {!readOnly && (
             <button
               type="button"
               onClick={handleGenerateSummary}
@@ -417,6 +443,7 @@ export default function CandidateDetailClient({
               )}
               {generatingSummary ? "Membuat ringkasan..." : summary ? "Buat ulang ringkasan" : "Buat ringkasan AI"}
             </button>
+            )}
           </div>
         </section>
       </div>
@@ -510,18 +537,46 @@ export default function CandidateDetailClient({
                     </div>
                   )}
                 </div>
+              ) : readOnly ? (
+                <EmptyState
+                  icon={Lock}
+                  title="Belum ada catatan"
+                  description="Catatan observasi diisi oleh pewawancara."
+                  className="py-6"
+                />
               ) : (
                 <div className="space-y-5">
                   <p className="text-sm text-slate-500">
                     Catatan akan dikirim atas nama{" "}
                     <span className="font-semibold text-slate-900">{interviewerName}</span>
                   </p>
+                  {existingNote && !isLocked && (
+                    <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-800">
+                      Draf tersimpan{existingNote.updatedAt ? ` (${formatDate(existingNote.updatedAt)})` : ""}. Masih bisa diedit sebelum dikunci.
+                    </p>
+                  )}
+                  {!canSubmit && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                      <p className="flex items-center gap-2 font-semibold">
+                        <AlertCircle size={16} aria-hidden="true" />
+                        Pengisian belum lengkap
+                      </p>
+                      <p className="mt-1">Yang masih kurang:</p>
+                      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                        {missingFields.map((f) => (
+                          <li key={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-xs text-amber-800">Draf tetap bisa disimpan; semua kolom bertanda * wajib terisi sebelum dikunci.</p>
+                    </div>
+                  )}
                   <Textarea
                     id="note-observation"
                     label="1. Observasi umum *"
                     placeholder="Kesan umum selama wawancara dan observasi"
                     value={observation}
                     onChange={(e) => setObservation(e.target.value)}
+                    error={showErrors && !observation.trim() ? "Wajib diisi" : undefined}
                     className="min-h-[110px]"
                   />
                   <Textarea
@@ -530,6 +585,7 @@ export default function CandidateDetailClient({
                     placeholder="Kemampuan dan kesiapan belajar siswa"
                     value={academicAssessment}
                     onChange={(e) => setAcademicAssessment(e.target.value)}
+                    error={showErrors && !academicAssessment.trim() ? "Wajib diisi" : undefined}
                     className="min-h-[110px]"
                   />
                   <Textarea
@@ -538,6 +594,7 @@ export default function CandidateDetailClient({
                     placeholder="Keterlibatan dan dukungan orang tua"
                     value={familySupport}
                     onChange={(e) => setFamilySupport(e.target.value)}
+                    error={showErrors && !familySupport.trim() ? "Wajib diisi" : undefined}
                     className="min-h-[110px]"
                   />
                   <Textarea
@@ -546,6 +603,7 @@ export default function CandidateDetailClient({
                     placeholder="Sikap, adab, dan karakter siswa"
                     value={characterNotes}
                     onChange={(e) => setCharacterNotes(e.target.value)}
+                    error={showErrors && !characterNotes.trim() ? "Wajib diisi" : undefined}
                     className="min-h-[110px]"
                   />
                   <Textarea
@@ -559,6 +617,7 @@ export default function CandidateDetailClient({
 
                   <fieldset className="space-y-2 border-t border-slate-100 pt-5">
                     <legend className="text-sm font-medium text-slate-700">Kesimpulan & rekomendasi *</legend>
+                    {showErrors && !recommendation && <p className="text-xs text-rose-500">Pilih salah satu rekomendasi</p>}
                     <div role="radiogroup" aria-label="Rekomendasi" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {RECOMMENDATION_OPTIONS.map((opt) => {
                         const selected = recommendation === opt.value
@@ -585,6 +644,21 @@ export default function CandidateDetailClient({
                         )
                       })}
                     </div>
+                    {needsReason && (
+                      <Textarea
+                        id="note-reason"
+                        label={recommendation === "Tolak" ? "Kenapa ditolak? *" : "Kenapa dipertimbangkan? *"}
+                        placeholder={
+                          recommendation === "Tolak"
+                            ? "Jelaskan alasan siswa tidak diterima"
+                            : "Jelaskan hal yang masih perlu dipertimbangkan"
+                        }
+                        value={recommendationReason}
+                        onChange={(e) => setRecommendationReason(e.target.value)}
+                        error={showErrors && !recommendationReason.trim() ? "Alasan wajib diisi" : undefined}
+                        className="min-h-[90px]"
+                      />
+                    )}
                   </fieldset>
                 </div>
               )}
@@ -602,11 +676,20 @@ export default function CandidateDetailClient({
               studentAnswers={studentAnswers}
               isSd={candidate.level === "SD"}
               fill={!showAcademic}
+              onEdit={canEditAnswers ? () => setShowEditAnswers(true) : undefined}
               onShowQr={() => {
                 setQrType("form_parent")
                 setShowQrDialog(true)
               }}
             />
+            {canEditAnswers && (
+              <EditAnswersDialog
+                candidateId={candidate.id}
+                open={showEditAnswers}
+                onOpenChange={setShowEditAnswers}
+                onSaved={() => router.refresh()}
+              />
+            )}
           </div>
 
           {/* OBSERVASI AKADEMIK */}
@@ -622,10 +705,12 @@ export default function CandidateDetailClient({
                     <p className="text-sm text-slate-500">1 soal = 4 poin</p>
                   </div>
                 </div>
+                {!readOnly && (
                 <button type="button" onClick={() => setShowQrDialog(true)} className={BTN_SECONDARY_SM}>
                   <QrCode size={14} aria-hidden="true" />
                   Akses tes
                 </button>
+                )}
               </div>
               <div className="p-5">
                 {academicResult ? (
@@ -689,13 +774,15 @@ export default function CandidateDetailClient({
                   <EmptyState
                     icon={GraduationCap}
                     title="Belum ada hasil tes"
-                    description="Tampilkan kode QR agar siswa dapat mengerjakan tes akademik."
+                    description="Tampilkan QR agar siswa bisa mengerjakan tes."
                     className="py-6"
                     action={
-                      <button type="button" onClick={() => setShowQrDialog(true)} className={BTN_PRIMARY}>
-                        <QrCode size={16} aria-hidden="true" />
-                        Mulai tes (tampilkan QR)
-                      </button>
+                      readOnly ? undefined : (
+                        <button type="button" onClick={() => setShowQrDialog(true)} className={BTN_PRIMARY}>
+                          <QrCode size={16} aria-hidden="true" />
+                          Mulai tes (tampilkan QR)
+                        </button>
+                      )
                     }
                   />
                 )}
@@ -706,14 +793,14 @@ export default function CandidateDetailClient({
       </div>
 
       {/* STICKY ACTION BAR */}
-      {(!isLocked || (showAcademic && academicResult)) && (
+      {!readOnly && (!isLocked || (showAcademic && academicResult)) && (
         <div className="sticky bottom-4 z-30 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <p className="px-1 text-sm text-slate-600">
             {isLocked
               ? "Catatan observasi sudah terkunci."
               : canSubmit
-                ? "Semua kolom wajib sudah terisi. Siap disimpan dan dikunci."
-                : `Lengkapi dulu: ${missingFields.join(", ")}.`}
+                ? "Semua kolom wajib sudah terisi. Bisa disimpan sebagai draf atau dikunci."
+                : `Belum lengkap: ${missingFields.join(", ")}.`}
           </p>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {canDownload && candidate.level === "SMP" && (
@@ -725,8 +812,19 @@ export default function CandidateDetailClient({
             {!isLocked && (
               <button
                 type="button"
+                onClick={() => handleSubmitNote(false)}
+                disabled={submitting}
+                className={BTN_SECONDARY}
+              >
+                {submitting ? <RefreshCw size={16} className="animate-spin" aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}
+                Simpan draf
+              </button>
+            )}
+            {!isLocked && (
+              <button
+                type="button"
                 onClick={() => setShowConfirm(true)}
-                disabled={!canSubmit}
+                disabled={submitting}
                 className={BTN_PRIMARY}
               >
                 <Send size={16} aria-hidden="true" />
@@ -955,7 +1053,7 @@ export default function CandidateDetailClient({
           <button type="button" onClick={() => setShowConfirm(false)} className={BTN_SECONDARY}>
             Batal
           </button>
-          <button type="button" onClick={handleSubmitNote} disabled={submitting} className={BTN_PRIMARY}>
+          <button type="button" onClick={() => handleSubmitNote(true)} disabled={submitting} className={BTN_PRIMARY}>
             {submitting && <RefreshCw size={16} className="animate-spin" aria-hidden="true" />}
             {submitting ? "Menyimpan..." : "Ya, kunci"}
           </button>

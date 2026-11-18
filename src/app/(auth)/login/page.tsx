@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
+import { homePathFor } from "@/lib/permissions"
 import LoginClient from "./login-client"
 import type { Metadata } from "next"
 
@@ -21,7 +22,8 @@ export default async function LoginPage({
   const error = params?.error
 
   if (session?.user?.role === "admin") redirect("/admin")
-  if (session?.user?.role === "interviewer") redirect("/interviewer")
+  const role = session?.user?.role
+  if (role === "interviewer" || role === "quran_observer" || role === "committee") redirect(homePathFor(role, session?.user?.username))
 
   const users = await prisma.user.findMany({
     where: { username: { not: null }, passwordHash: { not: null } },

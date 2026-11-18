@@ -1,3 +1,4 @@
+import { canWriteObservation } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { generateCandidateSummary } from "@/lib/gemini"
 import { prisma } from "@/lib/prisma"
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const role = session.user.role
-  if (role !== "interviewer" && !role.startsWith("admin")) {
+  if (!canWriteObservation(role, session.user.username)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

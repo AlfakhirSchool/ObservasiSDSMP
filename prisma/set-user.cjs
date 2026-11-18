@@ -1,6 +1,6 @@
 // Buat / perbarui akun login (username + password).
 // Pemakaian: node prisma/set-user.cjs <username> <ROLE> "<Nama Tampilan>" [password]
-//   ROLE: ADMIN | ADMIN_SD | ADMIN_SMP | INTERVIEWER
+//   ROLE: ADMIN | ADMIN_SD | ADMIN_SMP | INTERVIEWER | QURAN_OBSERVER | COMMITTEE
 //   Untuk INTERVIEWER, Nama Tampilan HARUS sama persis dengan nilai
 //   selectedInterviewer di data siswa (dipakai untuk membatasi akses siswa).
 //   Password kosong => digenerate acak dan dicetak.
@@ -8,7 +8,7 @@
 const { randomBytes, scryptSync } = require("node:crypto")
 const { PrismaClient } = require("@prisma/client")
 
-const ROLES = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER"]
+const ROLES = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER", "QURAN_OBSERVER", "COMMITTEE"]
 
 function hashPassword(password) {
   const salt = randomBytes(16)

@@ -22,6 +22,7 @@ export interface InterviewerNote {
   familySupport: string
   characterNotes: string
   recommendation: "Terima" | "Pertimbangkan" | "Tolak"
+  recommendationReason?: string | null
   submittedAt: string
   isLocked: boolean
   aiSummary?: string | null

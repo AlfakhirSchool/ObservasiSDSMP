@@ -4,6 +4,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { generateCandidateSummary } from "@/lib/gemini"
 import { allow, ipFromHeaders } from "@/lib/rate-limit"
+import { answerError } from "@/lib/form-validation"
 import { recordActivity } from "@/lib/activity"
 
 // Pekerjaan setelah respons (ringkasan AI) berjalan sampai batas ini di Vercel.
@@ -18,6 +19,16 @@ const BodySchema = z.object({
   correctedName: z.string().trim().max(120).optional(),
   token: z.string().max(64).optional(),
 })
+
+// Orang tua kadang menulis "Benar"/"Sudah benar" di kolom koreksi nama; itu bukan nama dan tidak boleh menimpa nama siswa.
+const BUKAN_NAMA = /^(?:(?:sudah|udah)\s+)?(?:benar|betul|sesuai|ok|oke)$|^(?:-+|tidak ada)$/i
+
+/** Koreksi nama yang layak disimpan, atau undefined bila kosong, hanya beda huruf/spasi, atau bukan nama. */
+function koreksiNama(koreksi: string | undefined, namaTerdaftar: string) {
+  const bersih = koreksi?.trim().replace(/\s+/g, " ")
+  if (!bersih || BUKAN_NAMA.test(bersih)) return undefined
+  return bersih.toLowerCase() === namaTerdaftar.trim().replace(/\s+/g, " ").toLowerCase() ? undefined : bersih
+}
 
 export async function POST(req: Request) {
   try {
@@ -51,7 +62,7 @@ export async function POST(req: Request) {
     const categoryToProcess = role === "student" ? "SISWA" : "ORANG TUA"
     const validQuestions = await prisma.formQuestion.findMany({
       where: { category: categoryToProcess },
-      select: { id: true },
+      select: { id: true, text: true },
     })
     const validQuestionIds = validQuestions.map((q) => q.id)
     const validQuestionSet = new Set(validQuestionIds)
@@ -60,6 +71,21 @@ export async function POST(req: Request) {
     const filteredAnswers = Object.entries(answers)
       .filter(([questionId]) => validQuestionSet.has(questionId))
       .map(([questionId, value]) => ({ candidateId, questionId, value }))
+
+    // Tanpa satu pun jawaban yang cocok (mis. soal sudah diganti admin) jangan tandai "formulir masuk":
+    // siswa harus tetap terlihat belum mengisi, dan orang tua diminta memuat ulang.
+    if (filteredAnswers.length === 0) {
+      return NextResponse.json(
+        { error: "Jawaban tidak cocok dengan pertanyaan terbaru. Muat ulang halaman formulir lalu isi kembali." },
+        { status: 409 }
+      )
+    }
+
+    const teksSoal = new Map(validQuestions.map((q) => [q.id, q.text]))
+    for (const a of filteredAnswers) {
+      const error = answerError(teksSoal.get(a.questionId) ?? "", a.value)
+      if (error) return NextResponse.json({ error }, { status: 400 })
+    }
 
     await prisma.$transaction(async (tx) => {
       // Hapus hanya jawaban untuk pertanyaan yang masuk dalam kategori peran ini
@@ -76,7 +102,7 @@ export async function POST(req: Request) {
           status: "RESPONSE_RECEIVED",
           ...(role === "student"
             ? { studentEmail: email }
-            : { parentEmail: email, parentPhone, correctedName }),
+            : { parentEmail: email, parentPhone, correctedName: koreksiNama(correctedName, existing.name) }),
         },
       })
     })

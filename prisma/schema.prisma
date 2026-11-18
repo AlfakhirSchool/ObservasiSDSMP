@@ -131,6 +131,8 @@ model InterviewerNote {
   familySupport      String
   characterNotes     String
   recommendation     String
+  /// Alasan rekomendasi; wajib saat dikunci bila rekomendasi "Pertimbangkan" atau "Tolak". Null/kosong untuk "Terima".
+  recommendationReason String?
   isLocked           Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -157,6 +159,8 @@ enum Role {
   ADMIN_SD
   ADMIN_SMP
   INTERVIEWER
+  QURAN_OBSERVER
+  COMMITTEE
 }
 
 enum Level {

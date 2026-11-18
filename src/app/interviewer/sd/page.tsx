@@ -11,6 +11,7 @@ export default async function InterviewerSDPage() {
     where: { level: "SD" },
     include: {
       notes: true,
+      _count: { select: { formAnswers: true } },
     },
     orderBy: {
       createdAt: "desc",
@@ -24,7 +25,8 @@ export default async function InterviewerSDPage() {
     createdAt: c.createdAt.toISOString(),
     academicYear: c.academicYear,
     gelombang: c.gelombang,
-    hasResponse: c.status !== "PENDING",
+    // Berdasarkan jawaban yang benar-benar ada, bukan status: status tidak ikut berubah saat jawaban terhapus.
+    hasResponse: c._count.formAnswers > 0,
     // Catatan yang kuncinya dibuka admin dianggap belum selesai: siswa muncul lagi sebagai "Perlu observasi".
     hasNote: c.notes.some((n) => n.isLocked),
   }))

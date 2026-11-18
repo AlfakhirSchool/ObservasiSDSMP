@@ -310,8 +310,8 @@ export function RekapAkademikClient({
               }
               description={
                 query || statusUjian !== "semua"
-                  ? "Coba ubah kata kunci pencarian atau ganti filter status ujian."
-                  : "Calon siswa SMP pada periode ini belum ada yang menyelesaikan tes akademik online."
+                  ? "Ubah kata kunci atau filter status ujian."
+                  : "Belum ada siswa SMP yang menyelesaikan tes online."
               }
               action={
                 query || statusUjian !== "semua" ? (

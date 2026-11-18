@@ -169,7 +169,7 @@ export default function TimerMonitorClient() {
     <div className="space-y-6">
       <PageHeader
         title="Monitor Timer Wawancara"
-        description="Pantau timer 8 menit (maks. 10 menit) pewawancara orang tua secara langsung. Hanya informasi; tidak membatasi wawancara."
+        description="Timer 8 menit (maks. 10) pewawancara orang tua. Hanya informasi."
         actions={
           <>
             <select aria-label="Filter unit" value={unit} onChange={(e) => setUnit(e.target.value as UnitFilter)} className={SELECT}>
@@ -221,7 +221,7 @@ export default function TimerMonitorClient() {
           <EmptyState
             icon={Timer}
             title="Belum ada timer aktif"
-            description="Timer muncul di sini otomatis saat pewawancara orang tua mengklik nama siswa."
+            description="Muncul otomatis saat pewawancara mengklik nama siswa."
           />
         ) : (
           <div className="overflow-x-auto">

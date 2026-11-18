@@ -1,3 +1,4 @@
+import { canWriteObservation } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { logActivity } from "@/lib/activity-log"
@@ -7,18 +8,38 @@ import { revalidatePath } from "next/cache"
 import { Prisma } from "@prisma/client"
 import { interviewSecondsFromRow } from "@/lib/interview-timer-server"
 
-const text = (message: string) => z.string().trim().min(1, message).max(5000, "Teks terlalu panjang (maks 5000 karakter)")
+const longText = z.string().trim().max(5000, "Teks terlalu panjang (maks 5000 karakter)")
 
-const NoteSchema = z.object({
-  candidateId: z.string().min(1),
-  observation: text("Catatan observasi wajib diisi"),
-  academicAssessment: text("Penilaian akademik wajib diisi"),
-  familySupport: text("Catatan keluarga wajib diisi"),
-  characterNotes: text("Catatan karakter wajib diisi"),
-  otherNotes: z.string().trim().max(5000, "Teks terlalu panjang (maks 5000 karakter)").optional(),
-  recommendation: z.enum(["Terima", "Pertimbangkan", "Tolak"]),
-  aiSummary: z.string().optional(),
-})
+// Draf (lock=false) boleh belum lengkap; kunci (lock=true) mewajibkan semua kolom utama + rekomendasi.
+const NoteSchema = z
+  .object({
+    candidateId: z.string().min(1),
+    observation: longText,
+    academicAssessment: longText,
+    familySupport: longText,
+    characterNotes: longText,
+    otherNotes: longText.optional(),
+    recommendation: z.enum(["Terima", "Pertimbangkan", "Tolak", ""]),
+    recommendationReason: longText.optional(),
+    aiSummary: z.string().optional(),
+    lock: z.boolean().default(false),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.lock) return
+    const required = {
+      observation: "Catatan observasi wajib diisi",
+      academicAssessment: "Penilaian akademik wajib diisi",
+      familySupport: "Catatan keluarga wajib diisi",
+      characterNotes: "Catatan karakter wajib diisi",
+      recommendation: "Rekomendasi wajib dipilih",
+    } as const
+    for (const [key, message] of Object.entries(required)) {
+      if (!v[key as keyof typeof required]) ctx.addIssue({ code: "custom", path: [key], message })
+    }
+    if ((v.recommendation === "Pertimbangkan" || v.recommendation === "Tolak") && !v.recommendationReason) {
+      ctx.addIssue({ code: "custom", path: ["recommendationReason"], message: `Alasan ${v.recommendation === "Tolak" ? "ditolak" : "dipertimbangkan"} wajib diisi` })
+    }
+  })
 
 class NoteLockedError extends Error {}
 
@@ -27,7 +48,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const role = session.user.role
-  if (role !== "interviewer" && !role.startsWith("admin")) {
+  if (!canWriteObservation(role, session.user.username)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -36,7 +57,7 @@ export async function POST(request: Request) {
 
     const candidate = await prisma.candidate.findUnique({
       where: { id: validated.candidateId },
-      select: { id: true, name: true, level: true, selectedInterviewer: true, notes: { select: { id: true, isLocked: true } } },
+      select: { id: true, name: true, level: true, selectedInterviewer: true, notes: { select: { id: true, isLocked: true } }, _count: { select: { formAnswers: true } } },
     })
 
     if (!candidate) {
@@ -50,6 +71,10 @@ export async function POST(request: Request) {
 
     if (candidate.notes.some((n) => n.isLocked)) {
       return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })
+    }
+
+    if (validated.lock && candidate._count.formAnswers === 0) {
+      return NextResponse.json({ error: "Formulir orang tua belum diisi. Catatan tidak bisa dikunci sebelum formulir terisi." }, { status: 400 })
     }
 
     // Catatan + status dalam satu transaksi. Batas unik candidateId di database menolak catatan ganda
@@ -74,7 +99,8 @@ export async function POST(request: Request) {
       characterNotes: validated.characterNotes,
       otherNotes: validated.otherNotes || "",
       recommendation: validated.recommendation,
-      isLocked: true,
+      recommendationReason: validated.recommendation === "Terima" ? "" : validated.recommendationReason || "",
+      isLocked: validated.lock,
       ...(interviewSeconds !== null ? { interviewSeconds } : {}),
     }
     const note = await prisma.$transaction(async (tx) => {
@@ -86,12 +112,12 @@ export async function POST(request: Request) {
       } else {
         saved = await tx.interviewerNote.create({ data: { candidateId: validated.candidateId, ...noteData } })
       }
-      await tx.candidate.update({ where: { id: validated.candidateId }, data: { status: "REVIEWED" } })
+      if (validated.lock) await tx.candidate.update({ where: { id: validated.candidateId }, data: { status: "REVIEWED" } })
       return saved
     })
 
     await logActivity({
-      action: "CATATAN_KIRIM",
+      action: validated.lock ? "CATATAN_KIRIM" : "CATATAN_DRAF",
       targetType: "siswa",
       targetId: candidate.id,
       targetLabel: candidate.name,
@@ -100,7 +126,7 @@ export async function POST(request: Request) {
 
     // Siswa selesai: timer wawancara tidak diperlukan lagi, jadi hilang dari monitor admin. Gagal di sini tidak
     // boleh menggagalkan penyimpanan catatan.
-    await prisma.interviewTimer.deleteMany({ where: { candidateId: validated.candidateId } }).catch(() => undefined)
+    if (validated.lock) await prisma.interviewTimer.deleteMany({ where: { candidateId: validated.candidateId } }).catch(() => undefined)
 
     revalidatePath("/interviewer")
     revalidatePath(`/interviewer/${validated.candidateId}`)

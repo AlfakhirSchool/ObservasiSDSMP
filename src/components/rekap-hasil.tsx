@@ -108,8 +108,8 @@ export function RekapHasil({
         title={lockedUnit ? `Rekap Hasil — Unit ${lockedUnit}` : "Rekap Hasil"}
         description={
           lockedUnit
-            ? `Hasil kuesioner dan observasi khusus calon siswa ${lockedUnit}.`
-            : "Satu baris per siswa, satu kolom per pertanyaan atau indikator. Bisa difilter, dicari, dan diunduh ke Excel."
+            ? `Hasil kuesioner dan observasi calon siswa ${lockedUnit}.`
+            : "Satu baris per siswa. Bisa difilter, dicari, dan diunduh ke Excel."
         }
       />
 

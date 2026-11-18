@@ -164,7 +164,7 @@ export function FinishedSummary() {
               <EmptyState
                 icon={Inbox}
                 title={scope === "today" ? "Belum ada yang selesai menyimpan hari ini" : "Belum ada wawancara yang selesai disimpan"}
-                description="Muncul di sini otomatis setelah pewawancara menekan Simpan & kunci hasil."
+                description="Muncul setelah pewawancara menekan Simpan & kunci."
               />
             ) : (
               <ul className="divide-y divide-slate-100">

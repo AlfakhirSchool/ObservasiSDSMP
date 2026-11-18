@@ -5,7 +5,8 @@ import { Header } from "@/components/layout/header"
 import { BrandLogo } from "@/components/layout/brand-logo"
 import { NavLink } from "@/components/layout/nav-link"
 import { MobileNav } from "@/components/layout/mobile-nav"
-import { INTERVIEWER_NAV_ITEMS, MAIN_NAV_ITEMS } from "@/components/layout/nav-items"
+import { INTERVIEWER_NAV_ITEMS, mainNavFor, showsInterviewerNav } from "@/components/layout/nav-items"
+import { homePathFor } from "@/lib/permissions"
 
 export default async function DashboardLayout({
   children,
@@ -29,7 +30,7 @@ export default async function DashboardLayout({
             <MobileNav name={name} role={role} />
 
             <Link
-              href="/admin/admin"
+              href={homePathFor(role, session.user.username)}
               className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
             >
               {/* Teks merek disembunyikan saat menu desktop tampil: enam item menu + logo tidak muat berdampingan. */}
@@ -42,25 +43,27 @@ export default async function DashboardLayout({
               Divider menyatu dengan grup SD/SMP supaya keduanya hilang bersama.
             */}
             <div className="hidden h-10 min-w-0 flex-wrap items-center gap-x-1 gap-y-6 overflow-hidden xl:flex">
-              {MAIN_NAV_ITEMS.map(({ href, label }) => (
+              {mainNavFor(role).map(({ href, label }) => (
                 <NavLink key={href} href={href}>
                   {label}
                 </NavLink>
               ))}
 
-              <div className="ml-2 flex items-center border-l border-white/10 pl-3">
-                <div
-                  role="group"
-                  aria-label="Pewawancara"
-                  className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
-                >
-                  {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
-                    <NavLink key={href} href={href} className="px-2.5 py-1 text-xs">
-                      <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
-                    </NavLink>
-                  ))}
+              {showsInterviewerNav(role) && (
+                <div className="ml-2 flex items-center border-l border-white/10 pl-3">
+                  <div
+                    role="group"
+                    aria-label="Pewawancara"
+                    className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1"
+                  >
+                    {INTERVIEWER_NAV_ITEMS.map(({ href, label, dot }) => (
+                      <NavLink key={href} href={href} className="px-2.5 py-1 text-xs">
+                        <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" /> {label}
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 

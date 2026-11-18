@@ -1,3 +1,4 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getTimerSummary, type SummaryScope } from "@/lib/interview-timer-server"
 import { Level } from "@prisma/client"
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
   const session = await auth()
   const role = session?.user?.role
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!role.startsWith("admin")) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!canViewMonitoring(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const scope: SummaryScope = new URL(req.url).searchParams.get("scope") === "all" ? "all" : "today"
   try {

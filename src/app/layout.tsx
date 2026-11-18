@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import Script from "next/script"
 import { Toaster } from "react-hot-toast"
 import ProgressBar from "@/components/providers/progress-bar"
+import TouchEffects from "@/components/providers/touch-effects"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -61,6 +62,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <ProgressBar />
         </Suspense>
+        <TouchEffects />
         {children}
         <Toaster
           position="top-right"

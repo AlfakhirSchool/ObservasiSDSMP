@@ -9,7 +9,7 @@ import { logActivity } from "@/lib/activity-log"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
-const ROLES = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER"] as const
+const ROLES = ["ADMIN", "ADMIN_SD", "ADMIN_SMP", "INTERVIEWER", "QURAN_OBSERVER", "COMMITTEE"] as const
 
 const PasswordSchema = z.string().min(8, "Password minimal 8 karakter").max(72, "Password maksimal 72 karakter")
 
@@ -76,6 +76,29 @@ export async function updateUserName(id: string, name: string): Promise<ActionRe
   const updated = await prisma.user.updateMany({ where: { id, username: { not: null } }, data: { name: parsed.data } })
   if (updated.count === 0) return { ok: false, error: "Pengguna tidak ditemukan" }
   await logActivity({ action: "USER_NAMA", targetType: "pengguna", targetId: id, targetLabel: target?.username ?? parsed.data, detail: `${target?.name ?? "-"} → ${parsed.data}` })
+  revalidatePath("/admin/users")
+  return { ok: true }
+}
+
+export async function updateUserRole(id: string, role: string): Promise<ActionResult> {
+  const session = await requireAdmin()
+  if (!session) return { ok: false, error: "Hanya admin pusat yang dapat mengubah peran" }
+
+  const parsed = z.enum(ROLES).safeParse(role)
+  if (!parsed.success) return { ok: false, error: "Peran tidak valid" }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { username: true, name: true, role: true } })
+  if (!target?.username) return { ok: false, error: "Pengguna tidak ditemukan" }
+  if (target.role === parsed.data) return { ok: true }
+  if (id === session.user.id) return { ok: false, error: "Anda tidak dapat mengubah peran akun yang sedang dipakai" }
+
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN", passwordHash: { not: null } } })
+    if (adminCount <= 1) return { ok: false, error: "Tidak dapat mengubah peran admin pusat terakhir" }
+  }
+
+  await prisma.user.update({ where: { id }, data: { role: parsed.data } })
+  await logActivity({ action: "USER_PERAN", targetType: "pengguna", targetId: id, targetLabel: target.username, detail: `${target.role} → ${parsed.data}` })
   revalidatePath("/admin/users")
   return { ok: true }
 }

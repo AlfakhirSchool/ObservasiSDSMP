@@ -188,6 +188,8 @@ Login memakai **username dan password**, bukan akun Google. Pemeriksaan peran di
 
 Pewawancara tidak bisa mengunduh apa pun. Mereka hanya mengisi catatan observasi.
 
+**Pewawancara Al-Qur'an** (username `faisal`, `dedi`, `fida`, `malik`, `inggrid`, `rhoyan`, `nazly`, `irfan`; daftar di `src/lib/quran-observer.ts`) hanya boleh membuka `/interviewer/quran` dan menyimpan lewat `/api/quran`. Setelah login mereka langsung ke halaman itu, menu SD/SMP dan rekap tidak tampil, dan halaman atau API lain ditolak di `src/proxy.ts`.
+
 ## Raport PDF
 
 Surat "Hasil Observasi dan Asesmen PPDB" dibuat di browser dengan jsPDF mengikuti template sekolah (font Noto Serif, A4 satu halaman).

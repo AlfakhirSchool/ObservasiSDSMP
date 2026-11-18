@@ -1,3 +1,4 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getInterviewerMonitor } from "@/lib/data-service"
 import { redirect } from "next/navigation"
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 
 export default async function AdminInterviewersPage() {
   const session = await auth()
-  if (!session || session.user?.role !== "admin") redirect("/login")
+  if (!session || !canViewMonitoring(session.user?.role)) redirect("/login")
 
   const interviewers = await getInterviewerMonitor()
   return <InterviewerMonitorClient interviewers={interviewers} />

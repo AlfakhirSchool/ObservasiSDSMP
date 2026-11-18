@@ -14,6 +14,8 @@ export interface RekapFormQuestion {
 export interface RekapFormRow {
   id: string
   nama: string
+  /** Nama saat pendaftaran (tanpa koreksi orang tua); dipakai agar pencarian tetap menemukan siswa. */
+  namaDaftar: string
   /** Nama pewawancara yang ditugaskan; kosong bila belum ada. */
   guru: string
   gelombang: number
@@ -81,7 +83,8 @@ export async function getRekapForm(jenjang: RekapJenjang, kategori: RekapKategor
       const jawaban = byCandidate.get(c.id) ?? {}
       return {
         id: c.id,
-        nama: c.correctedName || c.name,
+        nama: (c.correctedName || c.name).trim().replace(/\s+/g, " "),
+        namaDaftar: c.name.trim().replace(/\s+/g, " "),
         guru: c.selectedInterviewer ?? "",
         gelombang: c.gelombang,
         academicYear: c.academicYear,

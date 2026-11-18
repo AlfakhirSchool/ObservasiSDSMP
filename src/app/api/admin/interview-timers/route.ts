@@ -1,3 +1,4 @@
+import { canViewMonitoring } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getAdminTimers } from "@/lib/interview-timer-server"
 import { Level } from "@prisma/client"
@@ -9,7 +10,7 @@ export async function GET() {
   const session = await auth()
   const role = session?.user?.role
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!role.startsWith("admin")) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!canViewMonitoring(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   try {
     const level = role === "admin_sd" ? Level.SD : role === "admin_smp" ? Level.SMP : undefined
