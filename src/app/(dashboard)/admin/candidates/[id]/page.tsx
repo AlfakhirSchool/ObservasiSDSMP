@@ -1,6 +1,7 @@
 import { canViewMonitoring, isAdminRole } from "@/lib/permissions"
 import { auth } from "@/lib/auth"
 import { getCandidateById } from "@/lib/data-service"
+import { missingParentFormQuestions } from "@/lib/form-completeness"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import CandidateDetailClient from "../../../../interviewer/[candidateId]/candidate-detail-client"
@@ -57,6 +58,7 @@ export default async function AdminCandidateDetailPage({
 
   const existingNote = candidate.notes[0] || null
   const savedSummary = candidate.aiSummary?.summary || null
+  const missingForm = await missingParentFormQuestions(candidate.id, candidate.level)
 
   return (
     <CandidateDetailClient
@@ -68,6 +70,7 @@ export default async function AdminCandidateDetailPage({
       canUnlock={isAdmin}
       canEditAnswers={isAdmin}
       readOnly={!isAdmin}
+      missingForm={missingForm}
     />
   )
 }

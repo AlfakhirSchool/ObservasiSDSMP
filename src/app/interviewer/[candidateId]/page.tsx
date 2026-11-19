@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { getCandidateById } from "@/lib/data-service"
+import { missingParentFormQuestions } from "@/lib/form-completeness"
 import { isAdminRole, canWriteObservation } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -89,6 +90,7 @@ export default async function CandidateDetailPage({
 
   const existingNote = candidate.notes[0] || null
   const savedSummary = candidate.aiSummary?.summary || null
+  const missingForm = await missingParentFormQuestions(candidate.id, candidate.level)
 
   return (
     <CandidateDetailClient
@@ -99,7 +101,9 @@ export default async function CandidateDetailPage({
       canDownload={isAdminRole(session.user.role)}
       canUnlock={isAdminRole(session.user.role)}
       readOnly={!canWriteObservation(session.user.role, session.user.username)}
+      canEditAnswers={isAdminRole(session.user.role) || (canWriteObservation(session.user.role, session.user.username) && !existingNote?.isLocked)}
       candidateToken={generateCandidateToken(candidate.id)}
+      missingForm={missingForm}
     />
   )
 }

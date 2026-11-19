@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ROOMS } from "@/lib/constants"
 
+const NO_YEAR = "Tanpa tahun ajaran"
+
 interface Candidate {
   id: string
   name: string
   level: string
   room: string | null
+  academicYear: string | null
   status?: string
   formAnswers?: {
     question: {
@@ -33,6 +36,7 @@ export default function FormPortalClient({ candidates }: Props) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [role, setRole] = useState<"parent" | "student">("parent")
+  const [year, setYear] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -53,24 +57,33 @@ export default function FormPortalClient({ candidates }: Props) {
   const isCandidateFullySubmitted = (c: Candidate) => {
     const parentDone = c.formAnswers?.some(a => a.question.category === "ORANG TUA")
     const studentDone = c.formAnswers?.some(a => a.question.category === "SISWA")
-    if (c.level === "SD") {
-      return Boolean(parentDone || c.status === "RESPONSE_RECEIVED" || c.status === "REVIEWED" || c.status === "COMPLETED")
-    } else {
-      return Boolean((parentDone && studentDone) || c.status === "REVIEWED" || c.status === "COMPLETED")
-    }
+    if (c.level === "SD") return Boolean(parentDone)
+    return Boolean(parentDone && studentDone)
   }
+
+  // Semua tahun ajaran yang ada di data, terbaru paling awal ("Tanpa tahun ajaran" di akhir). Tahun baru otomatis
+  // muncul di depan dan menjadi pilihan awal, walau semua siswanya sudah mengisi.
+  const years = useMemo(() => {
+    const set = new Set(candidates.map(c => c.academicYear ?? NO_YEAR))
+    return [...set].sort((a, b) => (a === NO_YEAR ? 1 : b === NO_YEAR ? -1 : b.localeCompare(a)))
+  }, [candidates])
+  const activeYear = year && years.includes(year) ? year : years[0]
+  const yearCandidates = useMemo(
+    () => candidates.filter(c => (c.academicYear ?? NO_YEAR) === activeYear),
+    [candidates, activeYear],
+  )
 
   // Untuk SMP: daftar ruangan yang masih memiliki calon siswa aktif
   const availableRooms = useMemo(() => {
     if (level !== "SMP") return []
     const activeRooms = new Set(
-      candidates
+      yearCandidates
         .filter(c => !isCandidateFullySubmitted(c))
         .filter(c => c.level === "SMP" && c.room)
         .map(c => c.room)
     )
     return ROOMS.filter(r => activeRooms.has(r))
-  }, [candidates, level])
+  }, [yearCandidates, level])
 
   // Calon siswa yang disaring:
   // - SD: langsung seluruh siswa SD (tanpa filter ruangan) + filter pencarian teks
@@ -78,16 +91,16 @@ export default function FormPortalClient({ candidates }: Props) {
   const filteredCandidates = useMemo(() => {
     if (level === "SD") {
       const query = searchQuery.trim().toLowerCase()
-      return candidates
+      return yearCandidates
         .filter(c => !isCandidateFullySubmitted(c))
         .filter(c => c.level === "SD")
         .filter(c => !query || c.name.toLowerCase().includes(query))
     } else {
-      return candidates
+      return yearCandidates
         .filter(c => !isCandidateFullySubmitted(c))
         .filter(c => c.level === "SMP" && c.room === room)
     }
-  }, [candidates, level, room, searchQuery])
+  }, [yearCandidates, level, room, searchQuery])
 
   if (!mounted) return null
 
@@ -110,6 +123,26 @@ export default function FormPortalClient({ candidates }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Pilih tahun ajaran (hanya bila ada lebih dari satu) */}
+      {years.length > 1 && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tahun ajaran</span>
+          {years.map(y => (
+            <button
+              key={y}
+              type="button"
+              onClick={() => { setYear(y); setStep(1); setSelectedId(null); setRoom(null); setSearchQuery("") }}
+              className={cn(
+                "rounded-full border-2 px-3.5 py-1.5 text-[11px] font-black tracking-wider transition-all",
+                y === activeYear ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-white text-slate-500 hover:border-emerald-200",
+              )}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Step Indicators untuk alur SMP */}
       {level === "SMP" && (

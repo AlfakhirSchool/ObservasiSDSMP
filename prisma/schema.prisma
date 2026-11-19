@@ -229,3 +229,11 @@ model RaportAsset {
   data      String
   updatedAt DateTime @updatedAt
 }
+
+/// Tombol buka/tutup tahun ajaran di portal formulir publik (/form). Tahun tanpa baris dianggap terbuka.
+/// Hanya memengaruhi daftar nama di portal; tautan/QR per siswa tetap berfungsi.
+model FormYear {
+  academicYear String   @id
+  open         Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}

@@ -7,6 +7,7 @@ import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { Prisma } from "@prisma/client"
 import { interviewSecondsFromRow } from "@/lib/interview-timer-server"
+import { missingParentFormQuestions } from "@/lib/form-completeness"
 
 const longText = z.string().trim().max(5000, "Teks terlalu panjang (maks 5000 karakter)")
 
@@ -73,8 +74,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Catatan sudah dikirim dan tidak dapat diubah" }, { status: 409 })
     }
 
-    if (validated.lock && candidate._count.formAnswers === 0) {
-      return NextResponse.json({ error: "Formulir orang tua belum diisi. Catatan tidak bisa dikunci sebelum formulir terisi." }, { status: 400 })
+    const missingForm = await missingParentFormQuestions(candidate.id, candidate.level)
+    if (candidate._count.formAnswers === 0 || missingForm.length > 0) {
+      const error =
+        candidate._count.formAnswers === 0
+          ? "Formulir orang tua belum diisi. Catatan tidak bisa disimpan sebelum formulir terisi."
+          : `Formulir orang tua belum lengkap (${missingForm.length} isian kosong: ${missingForm.slice(0, 3).join("; ")}${missingForm.length > 3 ? "; ..." : ""}). Catatan tidak bisa disimpan sebelum formulir lengkap.`
+      return NextResponse.json({ error, missingForm }, { status: 400 })
     }
 
     // Catatan + status dalam satu transaksi. Batas unik candidateId di database menolak catatan ganda

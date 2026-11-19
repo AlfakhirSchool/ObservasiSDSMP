@@ -3,9 +3,28 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { assertAdmin } from "@/lib/guards"
+import { auth } from "@/lib/auth"
+import { canWriteObservation, isAdminRole } from "@/lib/permissions"
 import { logActivity } from "@/lib/activity-log"
 import { answerError } from "@/lib/form-validation"
+
+/**
+ * Admin selalu boleh. Pewawancara boleh melengkapi jawaban siswanya sendiri (SD: semua siswa) selama catatannya belum
+ * terkunci. Server action adalah endpoint POST publik, jadi pengecekan ini HARUS di sini.
+ */
+async function assertCanEditAnswers(candidateId: string) {
+  const session = await auth()
+  if (!session) throw new Error("Forbidden")
+  const { role, username, name } = session.user
+  if (isAdminRole(role)) return session
+  if (role !== "interviewer" || !canWriteObservation(role, username)) throw new Error("Forbidden")
+  const c = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+    select: { level: true, selectedInterviewer: true, notes: { select: { isLocked: true } } },
+  })
+  if (!c || c.notes.some((n) => n.isLocked) || (c.level !== "SD" && c.selectedInterviewer !== name)) throw new Error("Forbidden")
+  return session
+}
 
 export interface AnswerEditQuestion {
   id: string
@@ -48,7 +67,7 @@ function parseOptions(raw: string | null): string[] {
 
 /** Semua pertanyaan untuk jenjang siswa beserta jawaban yang tersimpan, agar admin bisa melengkapi yang kosong. */
 export async function getAnswerEditData(candidateId: string): Promise<AnswerEditData> {
-  await assertAdmin()
+  await assertCanEditAnswers(candidateId)
   const candidate = await prisma.candidate.findUnique({
     where: { id: candidateId },
     select: { name: true, level: true, formAnswers: { select: { questionId: true, value: true } } },
@@ -84,10 +103,10 @@ export async function getAnswerEditData(candidateId: string): Promise<AnswerEdit
  * catatannya sudah terkunci. Menolak simpan tanpa satu pun jawaban supaya jawaban lama tidak terhapus tak sengaja.
  */
 export async function saveAnswers(input: z.input<typeof SaveInput>): Promise<SaveAnswersResult> {
-  await assertAdmin()
   const parsed = SaveInput.safeParse(input)
   if (!parsed.success) return { ok: false, error: "Data tidak valid" }
   const { candidateId, category, values } = parsed.data
+  const session = await assertCanEditAnswers(candidateId)
 
   const candidate = await prisma.candidate.findUnique({ where: { id: candidateId }, select: { name: true, level: true, status: true } })
   if (!candidate) return { ok: false, error: "Siswa tidak ditemukan" }
@@ -121,7 +140,7 @@ export async function saveAnswers(input: z.input<typeof SaveInput>): Promise<Sav
     targetType: "siswa",
     targetId: candidateId,
     targetLabel: candidate.name,
-    detail: `${entries.length} jawaban (${category}) disimpan oleh admin`,
+    detail: `${entries.length} jawaban (${category}) disimpan oleh ${isAdminRole(session.user.role) ? "admin" : "pewawancara"}`,
   })
 
   for (const path of [`/admin/candidates/${candidateId}`, `/interviewer/${candidateId}`, "/interviewer/rekap", "/admin/rekap"]) {

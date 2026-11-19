@@ -1,10 +1,10 @@
 "use client"
 
 import { signIn } from "next-auth/react"
-import { GraduationCap, AlertCircle, Shield, BookOpen } from "lucide-react"
+import { GraduationCap, AlertCircle, Shield, BookOpen, ChevronDown } from "lucide-react"
 import { SCHOOL_NAME } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface LoginClientProps {
   error?: string
@@ -13,6 +13,25 @@ interface LoginClientProps {
 
 export default function LoginClient({ error: initialError, users }: LoginClientProps) {
   const [username, setUsername] = useState("")
+  const [open, setOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  // Dropdown buatan sendiri: popup <select> bawaan browser berkedip/menutup sendiri saat diklik.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!pickerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(initialError)
@@ -166,22 +185,46 @@ export default function LoginClient({ error: initialError, users }: LoginClientP
               <label htmlFor="username" className="block text-xs font-semibold text-slate-400 mb-2">
                 Username
               </label>
-              <select
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full px-4 py-3.5 bg-slate-800 border border-slate-700 text-white rounded-xl focus:outline-none focus:border-emerald-500 transition-colors"
-              >
-                <option value="" disabled>
-                  Pilih username
-                </option>
-                {users.map((u) => (
-                  <option key={u.username} value={u.username}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
+              <div ref={pickerRef} className="relative">
+                <button
+                  type="button"
+                  id="username"
+                  aria-haspopup="listbox"
+                  aria-expanded={open}
+                  onClick={() => setOpen((o) => !o)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-3.5 bg-slate-800 border border-slate-700 rounded-xl text-left focus:outline-none focus:border-emerald-500 transition-colors"
+                >
+                  <span className={username ? "text-white" : "text-slate-500"}>
+                    {users.find((u) => u.username === username)?.label ?? "Pilih username"}
+                  </span>
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+                </button>
+                {open && (
+                  <ul
+                    role="listbox"
+                    aria-labelledby="username"
+                    className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 py-1 shadow-2xl"
+                  >
+                    {users.map((u) => (
+                      <li key={u.username} role="option" aria-selected={u.username === username}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUsername(u.username)
+                            setOpen(false)
+                          }}
+                          className={cn(
+                            "w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-700 focus:bg-slate-700 focus:outline-none",
+                            u.username === username && "bg-emerald-500/20 text-emerald-300",
+                          )}
+                        >
+                          {u.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             <div>

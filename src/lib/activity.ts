@@ -22,7 +22,8 @@ export const ACTION_LABEL = {
   QURAN_SIMPAN: "Simpan observasi Al-Qur'an",
   RINGKASAN_AI: "Buat ringkasan AI",
   FORM_ISI: "Pengisian formulir",
-  FORM_UBAH_ADMIN: "Admin ubah jawaban formulir",
+  FORM_UBAH_ADMIN: "Ubah jawaban formulir",
+  FORM_TAHUN: "Buka/tutup tahun ajaran formulir",
   TES_AKADEMIK: "Tes akademik selesai",
   RAPORT_UNDUH: "Unduh raport",
   USER_TAMBAH: "Tambah pengguna",
@@ -43,7 +44,7 @@ export interface ActivityEntry {
   actorId?: string | null
   actorName: string
   actorRole: string
-  targetType?: "siswa" | "pengguna" | "soal" | "catatan" | "raport"
+  targetType?: "siswa" | "pengguna" | "soal" | "catatan" | "raport" | "tahun ajaran"
   targetId?: string | null
   targetLabel?: string | null
   /** Keterangan singkat. JANGAN berisi password atau NIM. */

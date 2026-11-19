@@ -23,6 +23,7 @@ import {
   Send,
   AlertTriangle,
   AlertCircle,
+  Pencil,
   CalendarDays,
   CheckCircle,
   DoorOpen,
@@ -62,6 +63,8 @@ interface Props {
   /** Admin boleh melengkapi atau memperbaiki jawaban formulir atas nama orang tua/siswa. */
   canEditAnswers?: boolean
   candidateToken?: string
+  /** Teks pertanyaan wajib formulir orang tua yang belum dijawab. */
+  missingForm: string[]
 }
 
 interface SubjectScore {
@@ -140,6 +143,7 @@ export default function CandidateDetailClient({
   canDownload,
   canUnlock,
   candidateToken,
+  missingForm,
   readOnly = false,
   canEditAnswers = false,
 }: Props) {
@@ -163,6 +167,7 @@ export default function CandidateDetailClient({
   const [confirmUnlock, setConfirmUnlock] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showNoForm, setShowNoForm] = useState(false)
   const [showAcademicDetails, setShowAcademicDetails] = useState(false)
   const [showQrDialog, setShowQrDialog] = useState(false)
   const [qrType, setQrType] = useState<"academic" | "form_parent" | "form_student">("academic")
@@ -232,6 +237,12 @@ export default function CandidateDetailClient({
   }
 
   const handleSubmitNote = async (lock: boolean) => {
+    // Formulir orang tua wajib terisi dulu; tanpa itu catatan (draf maupun kunci) tidak boleh disimpan.
+    if (formBlocked) {
+      setShowConfirm(false)
+      setShowNoForm(true)
+      return
+    }
     if (lock && !canSubmit) {
       setShowErrors(true)
       setShowConfirm(false)
@@ -284,9 +295,10 @@ export default function CandidateDetailClient({
   const unitColor = candidate.level === "SMP" ? "#0D5C63" : "#E67E22"
 
   const hasForm = candidate.formAnswers.length > 0
+  const formBlocked = !hasForm || missingForm.length > 0
   const needsReason = recommendation === "Pertimbangkan" || recommendation === "Tolak"
   const missingFields = [
-    !hasForm && "formulir dari orang tua (belum diisi)",
+    formBlocked && (hasForm ? `formulir orang tua (${missingForm.length} isian kosong)` : "formulir dari orang tua (belum diisi)"),
     !observation.trim() && "observasi umum",
     !academicAssessment.trim() && "kesiapan akademik",
     !familySupport.trim() && "dukungan keluarga",
@@ -823,7 +835,7 @@ export default function CandidateDetailClient({
             {!isLocked && (
               <button
                 type="button"
-                onClick={() => setShowConfirm(true)}
+                onClick={() => (formBlocked ? setShowNoForm(true) : setShowConfirm(true))}
                 disabled={submitting}
                 className={BTN_PRIMARY}
               >
@@ -1057,6 +1069,54 @@ export default function CandidateDetailClient({
             {submitting && <RefreshCw size={16} className="animate-spin" aria-hidden="true" />}
             {submitting ? "Menyimpan..." : "Ya, kunci"}
           </button>
+        </div>
+      </Dialog>
+
+      {/* Formulir orang tua belum diisi: simpan diblokir */}
+      <Dialog open={showNoForm} onOpenChange={setShowNoForm} className="max-w-md shadow-lg">
+        <div className="space-y-4 p-6 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <AlertTriangle size={22} aria-hidden="true" />
+          </span>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              {hasForm ? "Formulir orang tua belum lengkap" : "Formulir orang tua belum diisi"}
+            </h2>
+            <p className="text-sm text-slate-500">
+              Catatan tidak bisa disimpan sebelum formulir orang tua lengkap.{" "}
+              {canEditAnswers
+                ? "Lengkapi isiannya sekarang di sini (mis. dari hasil wawancara), atau minta orang tua mengisi lewat kode QR."
+                : "Minta orang tua mengisi atau melengkapinya (lewat kode QR), lalu muat ulang halaman ini."}
+            </p>
+            {hasForm && missingForm.length > 0 && (
+              <div className="mt-3 text-left">
+                <p className="text-xs font-semibold text-slate-700">Yang masih kosong ({missingForm.length}):</p>
+                <ul className="mt-1 max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-sm text-slate-600">
+                  {missingForm.map((q) => (
+                    <li key={q}>{q}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+          <button type="button" onClick={() => setShowNoForm(false)} className={canEditAnswers ? BTN_SECONDARY : BTN_PRIMARY}>
+            {canEditAnswers ? "Tutup" : "Mengerti"}
+          </button>
+          {canEditAnswers && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowNoForm(false)
+                setShowEditAnswers(true)
+              }}
+              className={BTN_PRIMARY}
+            >
+              <Pencil size={16} aria-hidden="true" />
+              Isi / lengkapi sekarang
+            </button>
+          )}
         </div>
       </Dialog>
     </div>

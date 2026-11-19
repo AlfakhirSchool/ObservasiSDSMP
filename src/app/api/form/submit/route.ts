@@ -49,14 +49,9 @@ export async function POST(req: Request) {
 
     const existing = await prisma.candidate.findUnique({
       where: { id: candidateId },
-      select: { id: true, name: true, parentPhone: true, notes: { select: { isLocked: true } } },
+      select: { id: true, name: true, status: true, parentPhone: true, notes: { select: { isLocked: true } } },
     })
     if (!existing) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 })
-
-    // Setelah observasi dikunci, jawaban formulir tidak boleh diubah lagi.
-    if (existing.notes.some((n) => n.isLocked)) {
-      return NextResponse.json({ error: "Observasi sudah selesai, jawaban tidak dapat diubah" }, { status: 409 })
-    }
 
     // 1. Dapatkan semua pertanyaan yang valid untuk kategori peran ini
     const categoryToProcess = role === "student" ? "SISWA" : "ORANG TUA"
@@ -66,6 +61,15 @@ export async function POST(req: Request) {
     })
     const validQuestionIds = validQuestions.map((q) => q.id)
     const validQuestionSet = new Set(validQuestionIds)
+
+    // Observasi yang sudah dikunci: jawaban yang sudah ada tidak boleh diubah, tetapi siswa yang belum pernah
+    // mengisi kategori ini boleh mengisi pertama kali (melengkapi data, tidak menimpa apa pun).
+    if (existing.notes.some((n) => n.isLocked)) {
+      const already = await prisma.formAnswer.count({ where: { candidateId, questionId: { in: validQuestionIds } } })
+      if (already > 0) {
+        return NextResponse.json({ error: "Observasi sudah selesai, jawaban tidak dapat diubah" }, { status: 409 })
+      }
+    }
 
     // Hanya jawaban yang sesuai kategori perannya yang diproses
     const filteredAnswers = Object.entries(answers)
@@ -99,7 +103,8 @@ export async function POST(req: Request) {
       await tx.candidate.update({
         where: { id: candidateId },
         data: {
-          status: "RESPONSE_RECEIVED",
+          // Status akhir yang diset admin (REVIEWED/COMPLETED) tidak diturunkan oleh pengisian formulir.
+          ...(existing.status === "REVIEWED" || existing.status === "COMPLETED" ? {} : { status: "RESPONSE_RECEIVED" as const }),
           ...(role === "student"
             ? { studentEmail: email }
             : { parentEmail: email, parentPhone, correctedName: koreksiNama(correctedName, existing.name) }),
